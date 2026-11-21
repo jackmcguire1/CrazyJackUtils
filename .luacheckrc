@@ -22,6 +22,16 @@ globals = {
 
 read_globals = {
   -- WoW API
+  "C_Map",
+  "C_Minimap",
+  "CreateVector2D",
+  "GetCVar",
+  "GetPlayerFacing",
+  "LibQuestieDB",
+  "MenuUtil",
+  "UnitClass",
+  "UnitFactionGroup",
+  "UnitPosition",
   "C_QuestLog",
   "C_Timer",
   "CreateFrame",

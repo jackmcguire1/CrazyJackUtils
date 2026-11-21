@@ -34,6 +34,7 @@
     "SLASH_FOREVERUTILS2",
     "InterfaceOptions_AddCategory",
     "ItemDB",
+    "LibQuestieDB",
     "NpcDB",
     "QuestDB",
     "InterfaceOptionsFrame_OpenToCategory",

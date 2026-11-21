@@ -2,7 +2,7 @@
 ## Title: ForeverUtils
 ## Notes: A collection of small utilities for WoW: Forever.
 ## Author: Jack McGuire
-## Version: 2026.47.1
+## Version: 2026.47.2
 ## X-License: Apache-2.0
 ## SavedVariables: ForeverUtilsDB
 ## OptionalDeps: QuestieDB

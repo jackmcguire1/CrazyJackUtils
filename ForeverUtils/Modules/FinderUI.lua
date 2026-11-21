@@ -33,7 +33,7 @@ end
 ---------------------------------------------------------------------------
 
 local window = CreateFrame("Frame", "ForeverUtilsFinderWindow", UIParent, "BasicFrameTemplateWithInset")
-window:SetSize(WIDTH, 520)
+window:SetSize(WIDTH, 540)
 window:SetPoint("CENTER")
 window:SetMovable(true)
 window:SetClampedToScreen(true)
@@ -78,12 +78,14 @@ overflowNote:SetPoint("TOPLEFT", 16, -96 - MAX_TARGETS * ROW_HEIGHT)
 local listTop = -116 - MAX_TARGETS * ROW_HEIGHT
 local listTitle = Label(window, "", "GameFontNormal")
 listTitle:SetPoint("TOPLEFT", 16, listTop)
-local listHint = Label(window, "", "GameFontDisableSmall")
-listHint:SetPoint("TOPRIGHT", -16, listTop - 2)
+local listHint = Label(window, "", "GameFontDisableSmall") -- on its own line under the title
+listHint:SetPoint("TOPLEFT", 16, listTop - 16)
+listHint:SetWidth(WIDTH - 32)
+listHint:SetWordWrap(false)
 
 local list = CreateFrame("Frame", nil, window)
 list:SetSize(WIDTH - 32, LIST_ROWS * ROW_HEIGHT)
-list:SetPoint("TOPLEFT", 16, listTop - 18)
+list:SetPoint("TOPLEFT", 16, listTop - 32)
 list:EnableMouseWheel(true)
 
 local entries, offset = {}, 0
@@ -102,7 +104,7 @@ for i = 1, LIST_ROWS do
   row:SetScript("OnClick", function()
     local entry = row.entry
     if entry.kind == "header" then
-      if IsShiftKeyDown() then
+      if IsShiftKeyDown() and #entry.names > 0 then
         module:SetTargets(entry.names)
       else
         module.db.expanded[entry.key] = not entry.open or nil
@@ -110,6 +112,8 @@ for i = 1, LIST_ROWS do
       end
     elseif IsShiftKeyDown() then
       module:Add(entry.name)
+    elseif entry.service then
+      module:FindNearest(entry.service) -- also says how far and which way
     else
       module:SetTargets({ entry.name })
       search:SetText("")
@@ -141,17 +145,19 @@ function RefreshList()
       row.text:SetPoint("RIGHT", row.note, "LEFT", -4, 0)
       if header then
         row.text:SetText(("|cffffd100%s %s|r"):format(entry.open and "-" or "+", entry.title))
-        row.note:SetText(#entry.names)
+        row.note:SetText(entry.count or #entry.names)
       else
-        row.text:SetText(entry.listed and "|cff888888" .. entry.name .. "|r" or entry.name)
+        local text = entry.label or entry.name
+        row.text:SetText(entry.listed and "|cff888888" .. text .. "|r" or text)
         row.note:SetText(entry.listed and "finding" or entry.note or "")
       end
     end
   end
   local below = #entries - offset - LIST_ROWS
   moreNote:SetText(below > 0 and ("%d more - scroll down"):format(below) or "")
-  listTitle:SetText(searching and "Search results" or "Quests and recent mobs")
-  listHint:SetText(searching and "Shift-click adds" or "Shift-click a quest: find all")
+  listTitle:SetText(searching and "Search results" or "Pick from")
+  listHint:SetText(searching and "Click to find, shift-click to add."
+    or "Shift-click a quest to find all its mobs.")
 
   local state = module:DatabaseState()
   local hint = "No known mob matches. Enter uses the name anyway."
@@ -260,10 +266,42 @@ button:RegisterForDrag("LeftButton")
 button:RegisterForClicks("AnyUp", "AnyDown")
 button:SetAttribute("type1", "macro")
 button:SetAttribute("macro", module.MACRO_NAME)
+-- Not an action the game knows, so a shift-click targets nothing and PostClick opens the menu.
+button:SetAttribute("shift-type1", "helper")
 button:Hide()
 
-button:SetScript("PostClick", function(_, mouseButton, down)
-  if mouseButton == "RightButton" and not down then module.ToggleWindow() end
+-- The shift-click menu: find the nearest vendor, trainer and so on.
+local function ShowHelperMenu(owner)
+  if not (MenuUtil and MenuUtil.CreateContextMenu) then
+    module.ToggleWindow()
+    return
+  end
+  MenuUtil.CreateContextMenu(owner, function(_, root)
+    root:CreateTitle("Find the nearest")
+    local professions -- a submenu, made when the first profession comes up
+    for _, service in ipairs(module.SERVICES) do
+      local function find() module:FindNearest(service.key) end
+      if service.profession then
+        professions = professions or root:CreateButton("Profession trainer")
+        professions:CreateButton(service.name, find)
+      else
+        root:CreateButton(service.name, find)
+      end
+    end
+  end)
+end
+
+button:SetScript("PostClick", function(self, mouseButton, down)
+  if down then return end
+  if mouseButton == "RightButton" then
+    module.ToggleWindow()
+  elseif mouseButton == "LeftButton" and IsShiftKeyDown() then
+    ShowHelperMenu(self)
+  elseif mouseButton == "LeftButton" and #module.db.targets == 0
+    and (GetMacroIndexByName(module.MACRO_NAME) or 0) == 0 then
+    -- Nothing to find and no macro yet. (An existing macro opens the window itself.)
+    module.ToggleWindow()
+  end
 end)
 button:SetScript("OnDragStart", function(self)
   if IsShiftKeyDown() and not InCombatLockdown() then self:StartMoving() end
@@ -276,8 +314,11 @@ end)
 button:SetScript("OnEnter", function(self)
   GameTooltip:SetOwner(self, "ANCHOR_TOP")
   GameTooltip:AddLine("Target Finder")
-  for _, name in ipairs(module.db.targets) do GameTooltip:AddLine(name, 1, 1, 1) end
-  GameTooltip:AddLine("Click: target  Right-click: edit  Shift-drag: move", 0.6, 0.6, 0.6)
+  local targets = module.db.targets
+  for _, name in ipairs(targets) do GameTooltip:AddLine(name, 1, 1, 1) end
+  if #targets == 0 then GameTooltip:AddLine("Nothing to find yet.", 1, 1, 1) end
+  GameTooltip:AddLine(#targets > 0 and "Click: target  Right-click: edit" or "Click: pick a mob", 0.6, 0.6, 0.6)
+  GameTooltip:AddLine("Shift-click: nearest vendor, trainer...  Shift-drag: move", 0.6, 0.6, 0.6)
   GameTooltip:Show()
 end)
 button:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -343,6 +384,57 @@ else
   GameTooltip:HookScript("OnTooltipSetUnit", OnUnitTooltip) -- older clients
 end
 
+---------------------------------------------------------------------------
+-- Minimap pins: where the mobs on the find list are known to spawn, drawn with the raid
+-- marker the macro uses. Addons can't see where a mob actually is.
+---------------------------------------------------------------------------
+
+local MAX_PINS = 30
+local PIN_INTERVAL = 0.1 -- seconds between redraws
+-- Yards from the centre of the minimap to its edge at each zoom level, outdoors.
+local ZOOM_YARDS = { [0] = 233.3, 200, 166.7, 133.3, 100, 66.7 }
+
+local pinFrame = CreateFrame("Frame", nil, Minimap)
+pinFrame:SetAllPoints()
+pinFrame:SetFrameLevel(Minimap:GetFrameLevel() + 5)
+pinFrame:Hide()
+local pins = {}
+
+local function UpdatePins()
+  local view = C_Minimap and C_Minimap.GetViewRadius and C_Minimap.GetViewRadius()
+  if type(view) ~= "number" or view <= 0 then view = ZOOM_YARDS[Minimap:GetZoom()] or ZOOM_YARDS[0] end
+  local facing = GetCVar("rotateMinimap") == "1" and GetPlayerFacing() or nil
+  if type(facing) ~= "number" then facing = nil end
+  local radius = Minimap:GetWidth() / 2 - 4
+  local marker = module.db.marker
+  local found = module:MinimapPins(view, facing, MAX_PINS)
+  for i, pin in ipairs(found) do
+    local texture = pins[i] or pinFrame:CreateTexture(nil, "OVERLAY")
+    pins[i] = texture
+    if marker > 0 then
+      texture:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. marker)
+      texture:SetVertexColor(1, 1, 1)
+      texture:SetSize(pin.edge and 12 or 14, pin.edge and 12 or 14)
+    else
+      texture:SetColorTexture(1, 0.82, 0) -- no marker chosen: a gold dot
+      texture:SetSize(5, 5)
+    end
+    texture:SetAlpha(pin.edge and 0.7 or 1)
+    texture:ClearAllPoints()
+    texture:SetPoint("CENTER", Minimap, "CENTER", pin.x * radius, pin.y * radius)
+    texture:Show()
+  end
+  for i = #found + 1, #pins do pins[i]:Hide() end
+end
+
+local sinceUpdate = 0
+pinFrame:SetScript("OnUpdate", function(_, elapsed)
+  sinceUpdate = sinceUpdate + elapsed
+  if sinceUpdate < PIN_INTERVAL then return end
+  sinceUpdate = 0
+  UpdatePins()
+end)
+
 function module.InitUI()
   local saved = module.db.buttonPoint
   if type(saved) == "table" and saved[1] then
@@ -356,27 +448,35 @@ function module.UpdateUI()
   local targets = db.targets
   if targets[1] then
     button:SetText(#targets > 1 and ("%s +%d"):format(targets[1], #targets - 1) or targets[1])
+  else
+    button:SetText("Target Finder")
   end
   -- Left for PLAYER_REGEN_ENABLED, which calls this again, when in combat.
   if not InCombatLockdown() then
-    button:SetShown(module.active and db.showButton and #targets > 0)
+    button:SetShown(module.active and db.showButton and (db.keepButton or #targets > 0))
   end
   UpdateTargetButton()
+  pinFrame:SetShown(module.active and db.minimapPins and #targets > 0)
   if not module.active then window:Hide() end
   if window:IsShown() then RefreshWindow() end
 end
 
 function module:BuildOptions(UI, anchor)
   local show = UI.Checkbox("Show the floating target button",
-    "Shown while you're finding something. Shift-drag moves it, right-click opens the list.",
+    "Click targets, right-click opens the list, shift-click finds a service, shift-drag moves it.",
     self.db, "showButton", anchor, nil, { onChange = module.UpdateUI })
+  local keep = UI.Checkbox("Keep the button when there's nothing to find", nil,
+    self.db, "keepButton", show, nil, { onChange = module.UpdateUI })
   local tooltip = UI.Checkbox("Show on mob tooltips",
     "Hovering a mob on your find list says so, and whether it's the only one.",
-    self.db, "tooltip", show)
+    self.db, "tooltip", keep)
   local targetButtonBox = UI.Checkbox("Show a Find button on the target frame", nil,
     self.db, "targetButton", tooltip, nil, { onChange = module.UpdateUI })
   local targetMenu = UI.Checkbox("Add Find to the target's right-click menu", nil,
     self.db, "targetMenu", targetButtonBox)
-  return (UI.Dropdown("Mark the mob with", self.db, "marker", MARKERS, targetMenu, nil, 120,
+  local minimapPins = UI.Checkbox("Show spawn points on the minimap",
+    "Where your mobs are known to spawn, drawn with the marker below. Needs QuestieDB.",
+    self.db, "minimapPins", targetMenu, nil, { onChange = module.UpdateUI })
+  return (UI.Dropdown("Mark the mob with", self.db, "marker", MARKERS, minimapPins, nil, 120,
     function() module:Changed() end))
 end

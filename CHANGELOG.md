@@ -1,18 +1,21 @@
-# ForeverUtils v2026.47.1
+# ForeverUtils v2026.47.2
 
-The first version: the options panel, minimap button and `/fu`, plus the first module.
+Target Finder can now find the nearest vendor, repairer or trainer for you, and shows where your mobs spawn on the minimap.
 
 ## New
 
-- **Target Finder.** Pick the mobs you're looking for and ForeverUtils keeps a `FUFind` macro, and a floating button, that target the nearest live one and mark it.
-  - `/tf` opens the window. Type a name, or pick from mobs in your quest objectives and mobs you've recently seen.
-  - If you have QuestieDB (it comes with Questie), the search covers every mob it knows.
-  - The window lists your quests as sections you can open to see their mobs, including the mobs that drop items you need to collect. Shift-click a quest to find all its mobs at once.
-  - `/tf <name>` finds a mob, `/tf + <name>` adds another, `/tf hover` finds the one under your cursor (there's a key binding for it too).
-  - A **Find** button on the target frame, and entries in the target's right-click menu, set the mob you have targeted. Each can be turned off in the options.
-  - Dead mobs are skipped unless you tick **Include dead mobs**.
-  - Hovering a mob on your list says so on its tooltip, and whether it's the only one. This can be turned off in the options.
+- **Find the nearest service.** Shift-click the floating button and pick Vendor, Repair, Banker, Innkeeper, Flight master, Auctioneer, Stable master, Class trainer or a profession trainer. Target Finder puts the nearest one on your find list and tells you how far away it is and in which direction.
+  - The `/tf` window lists the same services under **Nearest services** and **Nearest profession trainers**, with the distance to each.
+  - `/tf nearest repair` does it from chat. `/tf nearest` lists the services.
+  - This needs QuestieDB, and only covers NPCs on your continent that are friendly to your faction.
+- **Spawn points on the minimap.** The places your mobs are known to spawn show on the minimap, drawn with the raid marker you chose. If none is in range, the nearest one sits on the minimap's rim to point the way. This needs QuestieDB and can be turned off in the options.
+  - These are spawn points, not live positions. WoW doesn't tell addons where a mob actually is.
 
-- **Options panel** under Options → AddOns → ForeverUtils, with a master on/off switch and a checkbox for each module.
-- **Minimap button.** Left-click opens the options, right-click turns ForeverUtils on or off. It can be dragged around the minimap or hidden in the options.
-- **`/fu`** opens the options. `/fu on|off`, `/fu status`, `/fu <module> [on|off]` and `/fu debug` are also available.
+## Changed
+
+- **The floating button stays put.** It no longer disappears when your find list is empty, so the shift-click menu is always there. Clicking it with nothing to find opens the window. Untick **Keep the button when there's nothing to find** in the options to have it hide again.
+- **Options.** Target Finder's settings now sit together in their own section.
+
+## Fixed
+
+- **Overlapping text in the `/tf` window.** The grey hint no longer runs into the heading above the list.

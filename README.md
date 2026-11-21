@@ -36,8 +36,17 @@ With Black Ooze and Green Ooze on the list, the macro is:
   - `/tf <name>` finds one mob, `/tf + <name>` adds one, `/tf - <name>` removes one, `/tf clear` empties the list and `/tf list` prints it.
   - With a mob targeted, click the **Find** button on the target frame (shift-click adds instead of replacing), or right-click the target's portrait and pick **Find this mob** or **Add to find list**. Both can be turned off in the options panel.
   - `/tf hover` finds the mob under your cursor, or your target. It's also a key binding: Key Bindings → AddOns → ForeverUtils → "Find the mob under the cursor".
+- **Nearest services** (needs QuestieDB)
+  - Shift-click the floating button for a menu: Vendor, Repair, Banker, Innkeeper, Flight master, Auctioneer, Stable master, Class trainer, and a submenu of profession trainers. Picking one replaces the find list with the nearest NPC offering it and prints how far away it is and in which direction.
+  - The window lists the same under **Nearest services** and **Nearest profession trainers**, with distances. `/tf nearest <service>` does it from chat.
+  - Only NPCs on your continent and friendly to your faction count. "Nearest" is in a straight line.
+  - Services come from QuestieDB's NPC flags. Class and profession trainers are told apart by their title ("Warrior Trainer", "Herbalism Trainer"), which works on English clients only.
+- **Minimap spawn points** (needs QuestieDB)
+  - Addons can't see where a mob is, so the minimap shows where the mobs on your list are known to spawn (`NpcDB.spawns`), drawn with the chosen raid marker, or a gold dot if you chose none.
+  - If no spawn point is within the minimap's range, the nearest one is drawn on the rim, slightly faded, to point the way.
+  - Turn it off with **Show spawn points on the minimap** in the options panel.
 - **Targeting**
-  - The floating button appears while the list isn't empty. Click it to target, right-click to open the window, Shift-drag to move it.
+  - The floating button stays on screen; with nothing to find it reads "Target Finder" and a click opens the window. Untick **Keep the button when there's nothing to find** in the options to have it show only while the list isn't empty. Click it to target, right-click to open the window, Shift-click for the nearest-services menu, Shift-drag to move it.
   - **Pick up macro** in the window puts `FUFind` on your cursor to drop on an action bar.
   - "Target a mob on the find list" in the key bindings presses the floating button.
 - **Settings**

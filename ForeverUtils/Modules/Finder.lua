@@ -20,10 +20,12 @@ local module = ns.RegisterModule({
     allowDead = false, -- also target corpses
     marker = 1,        -- raid marker put on the mob found, 0 for none
     showButton = true, -- the floating button
+    keepButton = true, -- keep it on screen while there's nothing to find
     tooltip = true,    -- say so on the tooltip of a mob that's on the list
     targetButton = true, -- the Find button on the target frame
     targetMenu = true,   -- the entries in the target's right-click menu
     expanded = {},       -- [section key] = true for sections left open in the window
+    minimapPins = true,  -- show the mobs' known spawn points on the minimap
   },
 })
 ns.finder = module
@@ -37,6 +39,44 @@ local SEEN_SHOWN = 30 -- how many recently seen mobs the window lists
 local databaseState = "idle" -- idle | loading | ready | missing
 local databaseLower = {}     -- lowercased names, sorted once loaded
 local databaseNames = {}     -- [lowercased name] = name
+local databaseIds = {}       -- [lowercased name] = NPC id, or a list of ids sharing the name
+local servicePoints = {}     -- where vendors, trainers and the like stand: { c, n, w, service }
+local targetPoints           -- where the mobs on the find list spawn; nil when the list changed
+local areaMaps               -- [QuestieDB area id] = UiMapID; false if QuestieDB has no such table
+local pendingNearest         -- service asked for while the NPC list was still loading
+
+-- Classic's NPC flags, used if QuestieDB doesn't publish its own.
+local FLAGS = {
+  VENDOR = 4, FLIGHT_MASTER = 8, TRAINER = 16, INNKEEPER = 128, BANKER = 256,
+  AUCTIONEER = 4096, STABLEMASTER = 8192, REPAIR = 16384,
+}
+
+-- The services Target Finder can find the nearest of. `class`: only your class's trainer.
+-- `words`: the trainer's title must contain one of them (English clients).
+local SERVICES = {
+  { key = "vendor", name = "Vendor", flag = "VENDOR" },
+  { key = "repair", name = "Repair", flag = "REPAIR" },
+  { key = "banker", name = "Banker", flag = "BANKER" },
+  { key = "innkeeper", name = "Innkeeper", flag = "INNKEEPER" },
+  { key = "flight", name = "Flight master", flag = "FLIGHT_MASTER" },
+  { key = "auctioneer", name = "Auctioneer", flag = "AUCTIONEER" },
+  { key = "stable", name = "Stable master", flag = "STABLEMASTER" },
+  { key = "class", name = "Class trainer", flag = "TRAINER", class = true },
+  { key = "alchemy", name = "Alchemy", flag = "TRAINER", words = { "alchem" } },
+  { key = "blacksmithing", name = "Blacksmithing", flag = "TRAINER", words = { "blacksmith" } },
+  { key = "cooking", name = "Cooking", flag = "TRAINER", words = { "cook" } },
+  { key = "enchanting", name = "Enchanting", flag = "TRAINER", words = { "enchant" } },
+  { key = "engineering", name = "Engineering", flag = "TRAINER", words = { "engineer" } },
+  { key = "firstaid", name = "First Aid", flag = "TRAINER", words = { "first aid", "physician", "surgeon" } },
+  { key = "fishing", name = "Fishing", flag = "TRAINER", words = { "fish" } },
+  { key = "herbalism", name = "Herbalism", flag = "TRAINER", words = { "herbalis" } },
+  { key = "leatherworking", name = "Leatherworking", flag = "TRAINER", words = { "leatherwork" } },
+  { key = "mining", name = "Mining", flag = "TRAINER", words = { "mining", "miner" } },
+  { key = "skinning", name = "Skinning", flag = "TRAINER", words = { "skinn" } },
+  { key = "tailoring", name = "Tailoring", flag = "TRAINER", words = { "tailor" } },
+}
+for _, service in ipairs(SERVICES) do service.profession = service.words ~= nil end
+module.SERVICES = SERVICES
 
 local function IsSecret(value)
   return issecretvalue and issecretvalue(value)
@@ -98,6 +138,7 @@ function module:Sync(create)
 end
 
 local function Changed(self)
+  targetPoints = nil
   self:Sync(#self.db.targets > 0)
   if self.UpdateUI then self.UpdateUI() end
 end
@@ -292,6 +333,227 @@ function module:DatabaseState()
   return databaseState
 end
 
+---------------------------------------------------------------------------
+-- Where NPCs are: QuestieDB's spawn points, as world positions in yards
+---------------------------------------------------------------------------
+
+-- A QuestieDB field of NPC `id`, or nil if it has none or this QuestieDB lacks the field.
+local function Field(npcs, field, id)
+  local read = npcs[field]
+  if type(read) ~= "function" then return nil end
+  local ok, value = pcall(read, id)
+  return ok and value or nil
+end
+
+-- QuestieDB keys spawn points by area id; the game's map functions want UiMapIDs.
+local function AreaMaps()
+  if areaMaps ~= nil then return areaMaps end
+  areaMaps = false
+  local ok, zones = pcall(function() return LibQuestieDB.Support.Get("ZoneDB").private end)
+  if not ok or type(zones) ~= "table" then return areaMaps end
+  local maps = {}
+  -- Both are Lua source for a table. The second corrects the first.
+  for _, field in ipairs({ "areaIdToUiMapId", "areaIdToUiMapIdOverride" }) do
+    local chunk = type(zones[field]) == "string" and loadstring(zones[field])
+    local read, rows = pcall(chunk or error)
+    if read and type(rows) == "table" then
+      for area, map in pairs(rows) do maps[area] = map end
+    end
+  end
+  if next(maps) then areaMaps = maps end
+  return areaMaps
+end
+
+-- Every spawn point of NPC `id` as { c = continent, n = yards north, w = yards west }.
+local function SpawnPoints(npcs, id)
+  local points = {}
+  local maps, api = AreaMaps(), C_Map
+  local spawns = Field(npcs, "spawns", id)
+  if not maps or type(spawns) ~= "table" or not (api and api.GetWorldPosFromMapPos) then return points end
+  for area, coords in pairs(spawns) do
+    local map = maps[area]
+    if type(map) == "number" and map > 0 and type(coords) == "table" then
+      for _, coord in ipairs(coords) do
+        local x, y = coord[1], coord[2]
+        if type(x) == "number" and type(y) == "number" and x >= 0 and y >= 0 then -- -1: in an instance
+          local at = CreateVector2D and CreateVector2D(x / 100, y / 100) or { x = x / 100, y = y / 100 }
+          local ok, continent, pos = pcall(api.GetWorldPosFromMapPos, map, at)
+          if ok and type(pos) == "table" and type(pos.x) == "number" and type(pos.y) == "number" then
+            table.insert(points, { c = continent, n = pos.x, w = pos.y })
+          end
+        end
+      end
+    end
+  end
+  return points
+end
+
+-- Where you are, in the same terms: yards north, yards west, continent. nil where the
+-- game won't say, such as inside instances.
+function module:PlayerPosition()
+  if not UnitPosition then return nil end
+  local n, w, _, continent = UnitPosition("player")
+  if IsSecret(n) or IsSecret(w) or type(n) ~= "number" or type(w) ~= "number" then return nil end
+  return n, w, continent
+end
+
+local function HasFlag(flags, flag)
+  return math.floor(flags / flag) % 2 == 1
+end
+
+local function FlagValue(name)
+  local lib = LibQuestieDB
+  local published = type(lib) == "table" and type(lib.Enum) == "table"
+    and type(lib.Enum.npcFlags) == "table" and lib.Enum.npcFlags[name]
+  return type(published) == "number" and published or FLAGS[name]
+end
+
+-- The keys of the services an NPC with these flags and this title ("Warrior Trainer") offers.
+local function ServiceKeys(flags, title, class)
+  local keys = {}
+  title = title and title:lower() or ""
+  for _, service in ipairs(SERVICES) do
+    local offers = HasFlag(flags, FlagValue(service.flag))
+    if offers and service.class then
+      offers = class ~= nil and title == class .. " trainer"
+    elseif offers and service.words then
+      offers = false
+      for _, word in ipairs(service.words) do
+        if title:find(word, 1, true) then offers = true end
+      end
+    end
+    if offers then table.insert(keys, service.key) end
+  end
+  return keys
+end
+
+-- Notes where NPC `id` stands if it offers a service to your faction.
+local function ReadService(npcs, id, name, faction, class)
+  local flags = Field(npcs, "npcFlags", id)
+  if type(flags) ~= "number" or flags < 4 then return end -- below 4: just gossip and quests
+  local title = Field(npcs, "subName", id)
+  title = type(title) == "string" and title ~= "" and title or nil
+  local keys = ServiceKeys(flags, title, class)
+  if #keys == 0 then return end
+  local friendly = Field(npcs, "friendlyToFaction", id)
+  if faction and type(friendly) == "string" and not friendly:find(faction, 1, true) then return end
+  local service = { name = name, title = title, keys = keys }
+  for _, point in ipairs(SpawnPoints(npcs, id)) do
+    point.service = service
+    table.insert(servicePoints, point)
+  end
+end
+
+local COMPASS = { "east", "north-east", "north", "north-west", "west", "south-west", "south", "south-east" }
+
+local function Direction(east, north)
+  return COMPASS[math.floor(math.atan2(north, east) / (math.pi / 4) + 0.5) % 8 + 1]
+end
+
+-- The nearest NPC offering each service on your continent:
+-- [service key] = { name = ..., title = ..., distance = yards, direction = "north-east" }.
+-- nil if the game won't say where you are.
+function module:NearestServices()
+  local n, w, continent = self:PlayerPosition()
+  if not n then return nil end
+  local best, bestPoint = {}, {}
+  for _, point in ipairs(servicePoints) do
+    if point.c == continent then
+      local distance = (point.n - n) ^ 2 + (point.w - w) ^ 2
+      for _, key in ipairs(point.service.keys) do
+        if not best[key] or distance < best[key] then best[key], bestPoint[key] = distance, point end
+      end
+    end
+  end
+  local found = {}
+  for key, point in pairs(bestPoint) do
+    found[key] = { name = point.service.name, title = point.service.title,
+      distance = math.sqrt(best[key]), direction = Direction(w - point.w, point.n - n) }
+  end
+  return found
+end
+
+local function ServiceNamed(text)
+  text = text:lower()
+  for _, service in ipairs(SERVICES) do
+    if service.key == text or service.name:lower() == text then return service end
+  end
+end
+
+-- Finds the nearest NPC offering service `key`, replacing the find list.
+function module:FindNearest(key)
+  local service = ServiceNamed(key)
+  if not service then return end
+  self:LoadDatabase()
+  if databaseState == "loading" then
+    pendingNearest = service.key
+    ns.Print("reading QuestieDB's NPC list - one moment")
+    return
+  end
+  if databaseState == "missing" or not AreaMaps() then
+    ns.Print("finding the nearest %s needs the QuestieDB addon", service.name:lower())
+    return
+  end
+  local found = self:NearestServices()
+  local hit = found and found[service.key]
+  if not found then
+    ns.Print("the game doesn't say where you are in here, so the nearest one can't be worked out")
+  elseif not hit then
+    ns.Print("QuestieDB doesn't know a %s on this continent", service.name:lower())
+  else
+    self:SetTargets({ hit.name })
+    ns.Print("nearest %s: %s%s, %d yards %s", service.name:lower(), hit.name,
+      hit.title and (" <" .. hit.title .. ">") or "", hit.distance + 0.5, hit.direction)
+  end
+end
+
+-- Where the mobs on the find list are known to spawn.
+local function TargetPoints(self)
+  if targetPoints then return targetPoints end
+  if databaseState ~= "ready" then return {} end
+  targetPoints = {}
+  for _, name in ipairs(self.db.targets) do
+    local ids = databaseIds[name:lower()]
+    if type(ids) == "number" then ids = { ids } end
+    for _, id in ipairs(ids or {}) do
+      for _, point in ipairs(SpawnPoints(NpcDB, id)) do table.insert(targetPoints, point) end
+    end
+  end
+  return targetPoints
+end
+
+-- Pins for the minimap: the find list's spawn points within `radius` yards of you, nearest
+-- first, at most `limit`. Each is { x = ..., y = ... } in minimap radii right of and above
+-- its centre. If none are that close, the nearest one, pushed out to the rim, with
+-- edge = true. `facing`: your facing in radians if the minimap rotates with you.
+function module:MinimapPins(radius, facing, limit)
+  local pins = {}
+  self:LoadDatabase()
+  local n, w, continent = self:PlayerPosition()
+  if not n then return pins end
+  local nearest
+  for _, point in ipairs(TargetPoints(self)) do
+    if point.c == continent then
+      local east, south = w - point.w, n - point.n
+      local pin = { x = east / radius, y = -south / radius, distance = math.sqrt(east ^ 2 + south ^ 2) }
+      if facing then
+        local sin, cos = math.sin(facing), math.cos(facing)
+        pin.x, pin.y = (east * cos - south * sin) / radius, -(south * cos + east * sin) / radius
+      end
+      if pin.distance <= radius then table.insert(pins, pin) end
+      if not nearest or pin.distance < nearest.distance then nearest = pin end
+    end
+  end
+  if #pins == 0 and nearest then
+    nearest.x, nearest.y = nearest.x * radius / nearest.distance, nearest.y * radius / nearest.distance
+    nearest.edge = true
+    return { nearest }
+  end
+  table.sort(pins, function(a, b) return a.distance < b.distance end)
+  for i = #pins, limit + 1, -1 do pins[i] = nil end
+  return pins
+end
+
 -- Reads every NPC name out of QuestieDB, a batch per frame so the game doesn't stall.
 -- Called when the window first opens, so players who never search don't pay for it.
 function module:LoadDatabase()
@@ -305,16 +567,27 @@ function module:LoadDatabase()
   end
   databaseState = "loading"
   local index = 1
+  local side = UnitFactionGroup and UnitFactionGroup("player")
+  local faction = side == "Alliance" and "A" or side == "Horde" and "H" or nil
+  local className = UnitClass and UnitClass("player")
+  local class = type(className) == "string" and className:lower() or nil
   local function Step()
     local last = math.min(index + DATABASE_BATCH - 1, #ids)
     for i = index, last do
       local read, name = pcall(npcs.name, ids[i])
       if read and type(name) == "string" and name ~= "" then
         local lower = name:lower()
-        if not databaseNames[lower] then
+        local known = databaseIds[lower]
+        if not known then
           databaseNames[lower] = name
           table.insert(databaseLower, lower)
+          databaseIds[lower] = ids[i]
+        elseif type(known) == "number" then
+          databaseIds[lower] = { known, ids[i] }
+        else
+          table.insert(known, ids[i])
         end
+        ReadService(npcs, ids[i], name, faction, class)
       end
     end
     index = last + 1
@@ -324,7 +597,13 @@ function module:LoadDatabase()
     end
     table.sort(databaseLower)
     databaseState = "ready"
-    ns.Debug("loaded %d mob names from QuestieDB", #databaseLower)
+    targetPoints = nil
+    ns.Debug("loaded %d mob names and %d service locations from QuestieDB", #databaseLower, #servicePoints)
+    if pendingNearest then
+      local key = pendingNearest
+      pendingNearest = nil
+      self:FindNearest(key)
+    end
     if self.UpdateUI then self.UpdateUI() end
   end
   Step()
@@ -370,7 +649,10 @@ end
 --   { kind = "header", key = ..., title = ..., names = { every mob in it }, open = bool }
 --   { kind = "mob", name = ..., note = ..., listed = already on the find list }
 -- With something typed that's the search results. With nothing typed it's a section per
--- quest and one for mobs seen recently; only sections in `expanded` list their mobs.
+-- quest, one for mobs seen recently and, with QuestieDB, two for the nearest services
+-- and profession trainers; only sections in `expanded` list their rows. A service's row
+-- also has label = "Repair: <name>" to show and service = its key. Service headers have
+-- names = {}: there's no finding them all at once.
 function module:Browse(query, expanded, limit)
   local entries = {}
   if (query or ""):match("%S") then
@@ -398,6 +680,25 @@ function module:Browse(query, expanded, limit)
     seen[i] = { name = name }
   end
   if #seen > 0 then section("seen", "Recently seen", seen) end
+
+  local nearest = databaseState == "ready" and self:NearestServices() or {}
+  local function services(key, title, profession)
+    local rows = {}
+    for _, service in ipairs(SERVICES) do
+      local hit = service.profession == profession and nearest[service.key]
+      if hit then
+        table.insert(rows, { kind = "mob", name = hit.name, service = service.key,
+          label = service.name .. ": " .. hit.name, note = ("%d yd"):format(hit.distance + 0.5),
+          listed = IndexOf(self.db.targets, hit.name) ~= nil })
+      end
+    end
+    if #rows == 0 then return end
+    local open = expanded[key] and true or false
+    table.insert(entries, { kind = "header", key = key, title = title, names = {}, count = #rows, open = open })
+    for _, row in ipairs(open and rows or {}) do table.insert(entries, row) end
+  end
+  services("services", "Nearest services", false)
+  services("professions", "Nearest profession trainers", true)
   return entries
 end
 
@@ -496,8 +797,14 @@ SlashCmdList.FOREVERUTILSFINDER = function(input)
     ns.Print("finding: %s", table.concat(module.db.targets, ", "))
   elseif (cmd == "-" or cmd == "remove") and arg ~= "" then
     if not module:Remove(arg) then ns.Print("%s isn't on the find list", arg) end
+  elseif cmd == "nearest" and ServiceNamed(arg) then
+    module:FindNearest(arg)
+  elseif cmd == "nearest" then
+    local names = {}
+    for i, service in ipairs(SERVICES) do names[i] = service.key end
+    ns.Print("/tf nearest <one of: %s>", table.concat(names, ", "))
   elseif cmd == "help" or cmd == "?" then
-    ns.Print("/tf - window | <name> | + <name> | - <name> | hover | list | clear")
+    ns.Print("/tf - window | <name> | + <name> | - <name> | hover | list | clear | nearest <service>")
   else
     module:SetTargets({ input })
     ns.Print("finding %s", table.concat(module.db.targets, ", "))

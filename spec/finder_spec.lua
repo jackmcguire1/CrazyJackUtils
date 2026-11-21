@@ -16,7 +16,18 @@ local function load(opts)
     questDb = opts.questDb or {}, -- [questID] = QuestieDB objectives
     items = opts.items or {},     -- [itemID] = { name = ..., drops = { npc ids } }
     titles = {},        -- [questID] = title, else "Quest <id>"
+    -- [npc id] = { flags = ..., title = ..., faction = "A" | "H" | "AH", spawns = { [area] = { { x, y } } } }
+    npcInfo = opts.npcInfo or {},
+    player = { n = 0, w = 0, continent = 0 }, -- nil where the game won't say
+    facing = nil,
   }
+  -- The fake world: each map is 1000 yards square, with x and y running east and south
+  -- from its top left corner.
+  local MAPS = {
+    [1429] = { continent = 0, n = 1000, w = 1000 }, -- you start at its bottom right corner
+    [1411] = { continent = 1, n = 1000, w = 1000 },
+  }
+  local function info(id, field) return game.npcInfo[id] and game.npcInfo[id][field] end
   local env = {
     InCombatLockdown = function() return game.combat end,
     IsLoggedIn = function() return game.loggedIn end,
@@ -53,7 +64,27 @@ local function load(opts)
         if game.npcs[id] == "error" then error("bad row") end
         return game.npcs[id]
       end,
+      npcFlags = function(id) return info(id, "flags") or 0 end,
+      subName = function(id) return info(id, "title") end,
+      friendlyToFaction = function(id) return info(id, "faction") end,
+      spawns = function(id) return info(id, "spawns") end,
     } or nil,
+    LibQuestieDB = game.npcs and not opts.noZones and {
+      Support = { Get = function() return { private = {
+        areaIdToUiMapId = "return { [12] = 1429, [14] = 9999, [17] = 1411 }",
+        areaIdToUiMapIdOverride = "return { [14] = 1429 }",
+      } } end },
+    } or nil,
+    C_Map = { GetWorldPosFromMapPos = function(map, at)
+      local corner = assert(MAPS[map], "unknown map")
+      return corner.continent, { x = corner.n - at.y * 1000, y = corner.w - at.x * 1000 }
+    end },
+    UnitPosition = function()
+      if not game.player then return nil end
+      return game.player.n, game.player.w, 0, game.player.continent
+    end,
+    UnitClass = function() return "Warrior", "WARRIOR" end,
+    UnitFactionGroup = function() return "Alliance" end,
     QuestDB = game.npcs and { objectives = function(id) return game.questDb[id] or {} end } or nil,
     ItemDB = game.npcs and {
       name = function(id) return game.items[id] and game.items[id].name end,
@@ -546,5 +577,225 @@ describe("the window's list", function()
       quests(w)
       assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze" }, rows(w, "", { quest2 = true }))
     end)
+  end)
+end)
+
+describe("the nearest service", function()
+  local VENDOR, TRAINER, BANKER, REPAIR = 4, 16, 256, 16384
+  local NPCS = {
+    [1] = "Near Vendor", [2] = "Far Smith", [3] = "Near Smith", [4] = "Horde Smith", [5] = "Abroad Smith",
+    [6] = "Warrior Guy", [7] = "Mage Guy", [8] = "Herb Lady", [9] = "Plain Mob", [10] = "Dungeon Banker",
+  }
+  -- Spawns are map percentages. You stand at the bottom right corner of area 12's map,
+  -- so { 90, 100 } is 100 yards west of you and { 100, 50 } is 500 yards north.
+  local INFO = {
+    [1] = { flags = VENDOR, faction = "AH", spawns = { [12] = { { 95, 100 } } } },
+    [2] = { flags = VENDOR + REPAIR, title = "Weaponsmith", faction = "A", spawns = { [12] = { { 100, 50 } } } },
+    [3] = { flags = VENDOR + REPAIR, title = "Armorer", faction = "A", spawns = { [14] = { { 90, 90 } } } },
+    [4] = { flags = VENDOR + REPAIR, faction = "H", spawns = { [12] = { { 99, 99 } } } },
+    [5] = { flags = VENDOR + REPAIR, faction = "A", spawns = { [17] = { { 100, 100 } } } },
+    [6] = { flags = TRAINER, title = "Warrior Trainer", faction = "A", spawns = { [12] = { { 100, 80 } } } },
+    [7] = { flags = TRAINER, title = "Mage Trainer", faction = "A", spawns = { [12] = { { 100, 99 } } } },
+    [8] = { flags = TRAINER, title = "Herbalism Trainer", faction = "A", spawns = { [12] = { { 80, 100 } } } },
+    [9] = { flags = 0, spawns = { [12] = { { 100, 100 } } } },
+    [10] = { flags = BANKER, faction = "AH", spawns = { [12] = { { -1, -1 } } } },
+  }
+
+  local function ready(opts)
+    opts = opts or {}
+    opts.npcs, opts.npcInfo = opts.npcs or NPCS, opts.npcInfo or INFO
+    local w = load(opts)
+    w.finder:LoadDatabase()
+    w:RunTimers()
+    return w
+  end
+
+  it("goes on the find list, with how far and which way", function()
+    local w = ready({ finder = { targets = { "Kobold" } } })
+    w.finder:FindNearest("repair")
+    assert.same({ "Near Smith" }, w.db.modules.finder.targets)
+    assert.matches("nearest repair: Near Smith <Armorer>, 141 yards north%-west", w.printed[#w.printed])
+  end)
+
+  it("is the closest one of any that sell", function()
+    local w = ready()
+    w.finder:FindNearest("vendor")
+    assert.same({ "Near Vendor" }, w.db.modules.finder.targets)
+    assert.matches("50 yards west", w.printed[#w.printed])
+  end)
+
+  it("changes as you move", function()
+    local w = ready()
+    w.game.player = { n = 500, w = 0, continent = 0 }
+    w.finder:FindNearest("repair")
+    assert.same({ "Far Smith" }, w.db.modules.finder.targets)
+  end)
+
+  it("leaves out the other faction's, and other continents'", function()
+    local w = ready()
+    local found = w.finder:NearestServices()
+    assert.equal("Near Smith", found.repair.name)
+    w.game.player = { n = 0, w = 0, continent = 1 }
+    assert.equal("Abroad Smith", w.finder:NearestServices().repair.name)
+  end)
+
+  it("picks your own class's trainer", function()
+    local w = ready()
+    w.finder:FindNearest("class")
+    assert.same({ "Warrior Guy" }, w.db.modules.finder.targets)
+  end)
+
+  it("picks profession trainers by their title", function()
+    local w = ready()
+    local found = w.finder:NearestServices()
+    assert.equal("Herb Lady", found.herbalism.name)
+    assert.is_nil(found.mining)
+  end)
+
+  it("says so when there's none it knows where to find", function()
+    local w = ready({ finder = { targets = { "Kobold" } } })
+    w.finder:FindNearest("banker") -- the only one is inside an instance
+    assert.same({ "Kobold" }, w.db.modules.finder.targets)
+    assert.matches("doesn't know a banker", w.printed[#w.printed])
+  end)
+
+  it("says so where the game won't say where you are", function()
+    local w = ready()
+    w.game.player = nil
+    w.finder:FindNearest("repair")
+    assert.same({}, w.db.modules.finder.targets)
+    assert.matches("doesn't say where you are", w.printed[#w.printed])
+  end)
+
+  it("needs QuestieDB, and its zone maps", function()
+    local w = load()
+    w.finder:FindNearest("repair")
+    assert.matches("needs the QuestieDB addon", w.printed[#w.printed])
+    w = ready({ noZones = true })
+    w.finder:FindNearest("repair")
+    assert.matches("needs the QuestieDB addon", w.printed[#w.printed])
+  end)
+
+  it("is found once the NPC list has loaded, if asked for sooner", function()
+    local npcs, npcInfo = {}, {}
+    for id = 1, 1200 do npcs[id] = "Mob " .. id end
+    npcs[1200], npcInfo[1200] = "Late Smith", INFO[3]
+    local w = load({ npcs = npcs, npcInfo = npcInfo })
+    w.finder:FindNearest("repair")
+    assert.same({}, w.db.modules.finder.targets)
+    assert.matches("one moment", w.printed[#w.printed])
+    w:RunTimers()
+    assert.same({ "Late Smith" }, w.db.modules.finder.targets)
+  end)
+
+  it("/tf nearest finds one, or lists what it can find", function()
+    local w = ready()
+    w:Tf("nearest Repair")
+    assert.same({ "Near Smith" }, w.db.modules.finder.targets)
+    w:Tf("nearest pizza")
+    assert.matches("/tf nearest <one of: vendor, repair, banker", w.printed[#w.printed])
+    assert.same({ "Near Smith" }, w.db.modules.finder.targets)
+  end)
+
+  it("is listed in the window, services and profession trainers apart", function()
+    local w = ready({ finder = { targets = { "Near Vendor" } } })
+    local out = {}
+    for i, entry in ipairs(w.finder:Browse("", { services = true }, 10)) do
+      out[i] = entry.kind == "header" and ("%s (%d)"):format(entry.title, entry.count)
+        or ("  %s [%s]%s"):format(entry.label, entry.note, entry.listed and " *" or "")
+    end
+    assert.same({
+      "Nearest services (3)",
+      "  Vendor: Near Vendor [50 yd] *",
+      "  Repair: Near Smith [141 yd]",
+      "  Class trainer: Warrior Guy [200 yd]",
+      "Nearest profession trainers (1)",
+    }, out)
+  end)
+
+  it("isn't listed in the window where the game won't say where you are", function()
+    local w = ready()
+    w.game.player = nil
+    assert.same({}, w.finder:Browse("", { services = true }, 10))
+  end)
+end)
+
+describe("minimap pins", function()
+  local NPCS = { [1] = "Black Ooze", [2] = "Black Ooze", [3] = "Green Ooze", [4] = "Abroad Ooze" }
+  -- You stand at the bottom right corner of area 12's map: { 90, 100 } is 100 yards west.
+  local INFO = {
+    [1] = { spawns = { [12] = { { 90, 100 }, { 100, 95 } } } },
+    [2] = { spawns = { [12] = { { 100, 60 } }, [99] = { { 50, 50 } } } },
+    [3] = { spawns = { [12] = { { 98, 100 } } } },
+    [4] = { spawns = { [17] = { { 100, 100 } } } },
+  }
+
+  local function ready(targets)
+    local w = load({ npcs = NPCS, npcInfo = INFO, finder = { targets = targets } })
+    w.finder:LoadDatabase()
+    w:RunTimers()
+    return w
+  end
+
+  -- Pins as "x,y" in tenths of the minimap's radius, with ! for one pushed to the rim.
+  local function pins(w, radius, facing, limit)
+    local out = {}
+    for i, pin in ipairs(w.finder:MinimapPins(radius, facing, limit or 10)) do
+      out[i] = ("%d,%d%s"):format(math.floor(pin.x * 10 + 0.5), math.floor(pin.y * 10 + 0.5), pin.edge and "!" or "")
+    end
+    return out
+  end
+
+  it("show the spawn points in range, nearest first, for every mob of that name", function()
+    local w = ready({ "Black Ooze" })
+    assert.same({ "0,3", "-5,0" }, pins(w, 200))
+    assert.same({ "0,1", "-2,0", "0,8" }, pins(w, 500))
+  end)
+
+  it("cover every mob on the find list", function()
+    local w = ready({ "Black Ooze", "Green Ooze" })
+    assert.same({ "-1,0", "0,3", "-5,0" }, pins(w, 200))
+  end)
+
+  it("stop at the limit", function()
+    local w = ready({ "Black Ooze", "Green Ooze" })
+    assert.same({ "-1,0", "0,3" }, pins(w, 200, nil, 2))
+  end)
+
+  it("put the nearest one on the rim when none is in range", function()
+    local w = ready({ "Black Ooze" })
+    assert.same({ "0,10!" }, pins(w, 40))
+  end)
+
+  it("turn with you when the minimap rotates", function()
+    local w = ready({ "Black Ooze" })
+    assert.same({ "3,0", "0,5" }, pins(w, 200, math.pi / 2)) -- facing west: north is to your right
+  end)
+
+  it("follow the find list", function()
+    local w = ready({ "Black Ooze" })
+    w.finder:SetTargets({ "Green Ooze" })
+    assert.same({ "-1,0" }, pins(w, 200))
+    w.finder:SetTargets({})
+    assert.same({}, pins(w, 200))
+  end)
+
+  it("are absent on another continent, or where the game won't say where you are", function()
+    local w = ready({ "Abroad Ooze" })
+    assert.same({}, pins(w, 200))
+    w.game.player = { n = 0, w = 0, continent = 1 }
+    assert.same({ "0,0" }, pins(w, 200))
+    w.game.player = nil
+    assert.same({}, pins(w, 200))
+  end)
+
+  it("read QuestieDB's NPC list themselves if nothing else has", function()
+    local w = load({ npcs = NPCS, npcInfo = INFO, finder = { targets = { "Green Ooze" } } })
+    assert.same({ "-1,0" }, pins(w, 200))
+  end)
+
+  it("are absent without QuestieDB", function()
+    local w = load({ finder = { targets = { "Green Ooze" } } })
+    assert.same({}, pins(w, 200))
   end)
 end)

@@ -87,23 +87,34 @@ function UI.Dropdown(label, settings, key, choices, anchor, offsetY, width, onCh
   return title, dropdown
 end
 
+-- A heading with a rule under it, starting a group of settings.
+function UI.Section(text, anchor)
+  local heading = UI.Label(text, "GameFontNormal", anchor, -22)
+  local rule = panel:CreateTexture(nil, "ARTWORK")
+  rule:SetColorTexture(1, 1, 1, 0.15)
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", heading, "BOTTOMLEFT", 0, -3)
+  rule:SetPoint("RIGHT", panel, "RIGHT", -16, 0)
+  gaps[heading] = 4
+  return heading
+end
+
 local function Build()
   local title = UI.Label("ForeverUtils", "GameFontNormalLarge")
   title:SetPoint("TOPLEFT", 16, -16)
-  local sub = UI.Label("A collection of small utilities. Turn each one on or off below.", nil, title)
+  local sub = UI.Label("A collection of small utilities, each with its own section below.", nil, title)
 
   local enabled = UI.Checkbox("Enable ForeverUtils", "Turns every module off when unchecked.",
     ns.db, "enabled", sub, -12, { onChange = ns.Refresh })
   local minimap = UI.Checkbox("Show minimap button", nil, ns.db, "minimapHide", enabled, nil,
     { inverted = true, onChange = ns.UpdateMinimapButton })
 
-  ---@type any -- a label, then whichever widget each module ends on
-  local last = UI.Label("Modules", "GameFontNormal", minimap, -20)
-  if #ns.modules == 0 then
-    UI.Label("No modules installed yet.", "GameFontDisable", last, -8)
-  end
+  -- A section per module: its on/off switch, then its own settings.
+  ---@type any -- whichever widget the section before ends on
+  local last = minimap
   for _, module in ipairs(ns.modules) do
-    last = UI.Checkbox(module.name, module.description, module.db, "enabled", last, -8,
+    last = UI.Section(module.name, last)
+    last = UI.Checkbox("Enable " .. module.name, module.description, module.db, "enabled", last, -8,
       { onChange = ns.Refresh })
     if module.BuildOptions then last = module:BuildOptions(UI, last) or last end
   end
