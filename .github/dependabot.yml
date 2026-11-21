@@ -1,0 +1,26 @@
+# Dependabot opens pull requests for the two things here it understands. The tools
+# pinned in mise.toml (uv, Lua, lua-language-server, actionlint), the luarocks
+# versions and WOW_API_REV aren't covered and are bumped by hand.
+version: 2
+updates:
+  # The actions used by .github/workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Python packages in pyproject.toml and uv.lock, for tools/build.py.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    groups:
+      python:
+        patterns: ["*"]
