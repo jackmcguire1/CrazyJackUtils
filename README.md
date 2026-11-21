@@ -73,6 +73,7 @@ ForeverUtils/            the addon, as it's installed
   Minimap.lua            minimap button
 spec/                    busted tests and the fake WoW client
 tools/build.py           TOC check, zip and install
+AGENTS.md                notes for AI coding agents working on the repo
 ```
 
 ## Adding a module
@@ -110,7 +111,7 @@ How modules behave:
 
 - A module's settings live in `ForeverUtilsDB.modules[key]` and are available as `module.db` from `OnInit` onwards. `defaults` fills in missing settings. `enabled` is added automatically and defaults to `true`; put `enabled = false` in `defaults` for an opt-in module.
 - A module is active when both ForeverUtils and the module are enabled. `OnEnable` and `OnDisable` are called when that changes, and `events` handlers are only called while it's active.
-- `ns.UI` has `Label`, `Checkbox`, `Button` and `Dropdown` for `BuildOptions`. Each is placed under the `anchor` it's given.
+- `ns.UI` has `Label`, `Checkbox`, `Button` and `Dropdown` for `BuildOptions`. Each is placed under the `anchor` it's given, except `Button`, which you place yourself. Each module's options sit in their own headed section of the panel, made with `ns.UI.Section`.
 
 ## Developing
 
