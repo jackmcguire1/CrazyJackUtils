@@ -4,6 +4,7 @@ local _, ns = ...
 -- units themselves, so the macro (and the button in FinderUI.lua that runs it) does it.
 
 local MACRO_NAME = "FUFind"
+local SOLO_MACRO_NAME = "FUFindOne" -- targets one mob: what the window's magnifying glasses run
 local MACRO_ICON = "INV_MISC_QUESTIONMARK" -- shows the icon of whatever the macro would do
 local MACRO_LIMIT = 255
 local EMPTY_MACRO = "/tf" -- with nothing to find, the macro opens the window instead
@@ -24,12 +25,13 @@ local module = ns.RegisterModule({
     tooltip = true,    -- say so on the tooltip of a mob that's on the list
     targetButton = true, -- the Find button on the target frame
     targetMenu = true,   -- the entries in the target's right-click menu
-    expanded = {},       -- [section key] = true for sections left open in the window
+    expanded = {},       -- [section key] = whether you left that section of the window open
     minimapPins = true,  -- show the mobs' known spawn points on the minimap
   },
 })
 ns.finder = module
 module.MACRO_NAME = MACRO_NAME
+module.SOLO_MACRO_NAME = SOLO_MACRO_NAME
 
 local questGroups -- cached quests and their mobs; nil when the quest log has changed
 local questNames  -- cached list of every mob name in questGroups
@@ -112,6 +114,36 @@ function module:MacroText()
   if used == 0 then return EMPTY_MACRO, 0 end
   if mark then table.insert(lines, mark) end
   return table.concat(lines, "\n"), used
+end
+
+-- A macro body that targets just `name`.
+function module:MacroTextFor(name)
+  local db = self.db
+  local lines = { "/cleartarget", "/targetexact " .. name }
+  if not db.allowDead then table.insert(lines, "/cleartarget [dead]") end
+  if db.marker > 0 then
+    table.insert(lines, ("/tm [exists%s] %d"):format(db.allowDead and "" or ",nodead", db.marker))
+  end
+  return table.concat(lines, "\n")
+end
+
+-- Writes the second macro, which targets just `name`. A magnifying glass calls this as
+-- it's clicked, then runs that macro, so the main one always holds the whole list.
+-- Made the first time it's needed. Returns false if it couldn't be written.
+function module:Solo(name)
+  if InCombatLockdown() then return false end
+  local text = self:MacroTextFor(name)
+  local index = GetMacroIndexByName(SOLO_MACRO_NAME)
+  if index and index > 0 then
+    EditMacro(index, nil, nil, text)
+    return true
+  end
+  local ok, result = pcall(CreateMacro, SOLO_MACRO_NAME, MACRO_ICON, text, nil)
+  if not ok or not result then
+    ns.Print("couldn't create the %s macro - is your general macro list full?", SOLO_MACRO_NAME)
+    return false
+  end
+  return true
 end
 
 -- Writes the macro. Macros can't be changed in combat, so that waits until it ends.
@@ -649,9 +681,10 @@ end
 --   { kind = "header", key = ..., title = ..., names = { every mob in it }, open = bool }
 --   { kind = "mob", name = ..., note = ..., listed = already on the find list }
 -- With something typed that's the search results. With nothing typed it's a section per
--- quest, one for mobs seen recently and, with QuestieDB, two for the nearest services
--- and profession trainers; only sections in `expanded` list their rows. A service's row
--- also has label = "Repair: <name>" to show and service = its key. Service headers have
+-- quest, then mobs seen recently and, with QuestieDB, the nearest services and
+-- profession trainers. Quests start open and the rest closed; `expanded`
+-- holds the sections you've opened or closed since. A service's row also has
+-- label = "Repair: <name>" to show and service = its key. Service headers have
 -- names = {}: there's no finding them all at once.
 function module:Browse(query, expanded, limit)
   local entries = {}
@@ -662,24 +695,29 @@ function module:Browse(query, expanded, limit)
     end
     return entries
   end
-  local function section(key, title, mobs)
+  local function header(key, title, names, count, startsOpen)
+    local open = expanded[key]
+    if open == nil then open = startsOpen end
+    open = open and true or false
+    table.insert(entries, { kind = "header", key = key, title = title, names = names, count = count, open = open })
+    return open
+  end
+  local function section(key, title, mobs, startsOpen)
     local names = {}
     for i, mob in ipairs(mobs) do names[i] = mob.name end
-    local open = expanded[key] and true or false
-    table.insert(entries, { kind = "header", key = key, title = title, names = names, open = open })
-    if not open then return end
+    if not header(key, title, names, #names, startsOpen) then return end
     for _, mob in ipairs(mobs) do
       table.insert(entries, { kind = "mob", name = mob.name, note = mob.item,
         listed = IndexOf(self.db.targets, mob.name) ~= nil })
     end
   end
-  for _, group in ipairs(QuestGroups()) do section(group.key, group.title, group.mobs) end
+  for _, group in ipairs(QuestGroups()) do section(group.key, group.title, group.mobs, true) end
   local seen = {}
   for i, name in ipairs(SeenNames(self.db.seen)) do
     if i > SEEN_SHOWN then break end
     seen[i] = { name = name }
   end
-  if #seen > 0 then section("seen", "Recently seen", seen) end
+  if #seen > 0 then section("seen", "Recently seen mobs", seen, false) end
 
   local nearest = databaseState == "ready" and self:NearestServices() or {}
   local function services(key, title, profession)
@@ -692,10 +730,8 @@ function module:Browse(query, expanded, limit)
           listed = IndexOf(self.db.targets, hit.name) ~= nil })
       end
     end
-    if #rows == 0 then return end
-    local open = expanded[key] and true or false
-    table.insert(entries, { kind = "header", key = key, title = title, names = {}, count = #rows, open = open })
-    for _, row in ipairs(open and rows or {}) do table.insert(entries, row) end
+    if #rows == 0 or not header(key, title, {}, #rows, false) then return end
+    for _, row in ipairs(rows) do table.insert(entries, row) end
   end
   services("services", "Nearest services", false)
   services("professions", "Nearest profession trainers", true)
@@ -738,6 +774,9 @@ module.events = {
     if self.UpdateUI then self.UpdateUI() end
   end,
   PLAYER_ENTERING_WORLD = function(self) self:Sync(false) end,
+  PLAYER_REGEN_DISABLED = function(self)
+    if self.OnCombat then self.OnCombat() end
+  end,
   PLAYER_REGEN_ENABLED = function(self)
     if self.dirty then self:Sync(false) end
     if self.UpdateUI then self.UpdateUI() end

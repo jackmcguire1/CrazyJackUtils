@@ -1,21 +1,13 @@
-# ForeverUtils v2026.47.2
+# ForeverUtils v2026.47.3
 
-Target Finder can now find the nearest vendor, repairer or trainer for you, and shows where your mobs spawn on the minimap.
+The Target Finder window is easier to read, and you can choose the raid marker in it.
 
 ## New
 
-- **Find the nearest service.** Shift-click the floating button and pick Vendor, Repair, Banker, Innkeeper, Flight master, Auctioneer, Stable master, Class trainer or a profession trainer. Target Finder puts the nearest one on your find list and tells you how far away it is and in which direction.
-  - The `/tf` window lists the same services under **Nearest services** and **Nearest profession trainers**, with the distance to each.
-  - `/tf nearest repair` does it from chat. `/tf nearest` lists the services.
-  - This needs QuestieDB, and only covers NPCs on your continent that are friendly to your faction.
-- **Spawn points on the minimap.** The places your mobs are known to spawn show on the minimap, drawn with the raid marker you chose. If none is in range, the nearest one sits on the minimap's rim to point the way. This needs QuestieDB and can be turned off in the options.
-  - These are spawn points, not live positions. WoW doesn't tell addons where a mob actually is.
+- **Choose the marker in the window.** A row of raid marker icons sits near the bottom of the `/tf` window. Click one to have the macro use it, or the dash for no marker. The minimap spawn points change to match.
+- **Target one mob from the window.** Each mob on your find list has a magnifying glass beside it. Click it to target just that mob, whatever else is on the list. This uses a second macro called `FUFindOne`, created the first time you click one. The magnifying glasses are hidden during combat.
+- **Open Target Finder from the options.** There's an **Open Target Finder** button in its section of the options panel.
 
 ## Changed
 
-- **The floating button stays put.** It no longer disappears when your find list is empty, so the shift-click menu is always there. Clicking it with nothing to find opens the window. Untick **Keep the button when there's nothing to find** in the options to have it hide again.
-- **Options.** Target Finder's settings now sit together in their own section.
-
-## Fixed
-
-- **Overlapping text in the `/tf` window.** The grey hint no longer runs into the heading above the list.
+- **Quests start open in the window.** Each quest's mobs are listed straight away, a click from being found. Recently seen mobs, services and profession trainers follow, closed until you open them. Sections you open or close stay that way.

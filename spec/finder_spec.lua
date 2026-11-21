@@ -174,6 +174,37 @@ describe("the macro", function()
     assert.is_nil(w:Macro():find("/tm", 1, true))
   end)
 
+  it("can be written for one mob on its own", function()
+    local w = load({ finder = { targets = { "Black Ooze", "Green Ooze" } } })
+    assert.equal(lines("/cleartarget", "/targetexact Green Ooze", "/cleartarget [dead]", "/tm [exists,nodead] 1"),
+      w.finder:MacroTextFor("Green Ooze"))
+    w.db.modules.finder.allowDead, w.db.modules.finder.marker = true, 0
+    assert.equal(lines("/cleartarget", "/targetexact Green Ooze"), w.finder:MacroTextFor("Green Ooze"))
+  end)
+
+  it("has a second macro for one mob, leaving the main one alone", function()
+    local w = load()
+    w.finder:SetTargets({ "Black Ooze", "Green Ooze" })
+    local whole = w:Macro()
+    assert.is_true(w.finder:Solo("Green Ooze"))
+    assert.equal(whole, w:Macro())
+    assert.same({ name = "FUFindOne", body = w.finder:MacroTextFor("Green Ooze") }, w.game.macros[2])
+    w.finder:Solo("Black Ooze") -- rewritten, not made again
+    assert.equal(2, #w.game.macros)
+    assert.equal(w.finder:MacroTextFor("Black Ooze"), w.game.macros[2].body)
+  end)
+
+  it("leaves the second macro alone in combat, and says so if it can't be made", function()
+    local w = load()
+    w.finder:SetTargets({ "Black Ooze" })
+    w.game.combat = true
+    assert.is_false(w.finder:Solo("Black Ooze"))
+    assert.equal(1, #w.game.macros)
+    w.game.combat, w.game.macroListFull = false, true
+    assert.is_false(w.finder:Solo("Black Ooze"))
+    assert.matches("couldn't create the FUFindOne macro", w.printed[#w.printed])
+  end)
+
   it("is updated in place, never duplicated", function()
     local w = load()
     w:Tf("Black Ooze")
@@ -498,7 +529,7 @@ describe("the window's list", function()
     local out = {}
     for i, entry in ipairs(w.finder:Browse(query, expanded or {}, 10)) do
       if entry.kind == "header" then
-        out[i] = ("%s %s (%d)"):format(entry.open and "-" or "+", entry.title, #entry.names)
+        out[i] = ("%s %s (%d)"):format(entry.open and "-" or "+", entry.title, entry.count)
       else
         out[i] = "  " .. entry.name .. (entry.note and " [" .. entry.note .. "]" or "") .. (entry.listed and " *" or "")
       end
@@ -516,18 +547,18 @@ describe("the window's list", function()
     w:Fire("QUEST_LOG_UPDATE")
   end
 
-  it("shows each quest as a closed section, then recently seen mobs", function()
+  it("shows each quest as an open section, then recently seen mobs, closed", function()
     local w = load({ finder = { seen = { Kobold = 5 } } })
     quests(w)
-    assert.same({ "+ Ooze Trouble (2)", "+ Recently seen (1)" }, rows(w, ""))
+    assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze", "+ Recently seen mobs (1)" }, rows(w, ""))
   end)
 
-  it("lists a section's mobs once it's opened, marking ones already being found", function()
+  it("remembers the sections you open and close, marking mobs already being found", function()
     local w = load({ finder = { seen = { Kobold = 5 }, targets = { "Green Ooze" } } })
     quests(w)
-    assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze *", "+ Recently seen (1)" },
-      rows(w, " ", { quest2 = true }))
-    assert.same({ "+ Ooze Trouble (2)", "- Recently seen (1)", "  Kobold" }, rows(w, "", { seen = true }))
+    assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze *", "+ Recently seen mobs (1)" }, rows(w, " "))
+    assert.same({ "+ Ooze Trouble (2)", "- Recently seen mobs (1)", "  Kobold" },
+      rows(w, "", { quest2 = false, seen = true }))
   end)
 
   it("gives a section every mob name, to find them all at once", function()
@@ -563,7 +594,7 @@ describe("the window's list", function()
       assert.same({
         "- Ooze Trouble (2)", "  Black Ooze", "  Ooze Lord",
         "- Candles (2)", "  Kobold Digger [Kobold Candle]", "  Kobold Miner [Kobold Candle]",
-      }, rows(w, "", { quest2 = true, quest3 = true }))
+      }, rows(w, ""))
     end)
 
     it("offers those mobs when searching, too", function()
@@ -575,7 +606,7 @@ describe("the window's list", function()
     it("falls back to the objective text for a quest it doesn't know", function()
       local w = load({ npcs = NPCS, questDb = {}, items = ITEMS })
       quests(w)
-      assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze" }, rows(w, "", { quest2 = true }))
+      assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze" }, rows(w, ""))
     end)
   end)
 end)

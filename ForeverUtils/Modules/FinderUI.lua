@@ -33,14 +33,12 @@ end
 ---------------------------------------------------------------------------
 
 local window = CreateFrame("Frame", "ForeverUtilsFinderWindow", UIParent, "BasicFrameTemplateWithInset")
-window:SetSize(WIDTH, 540)
+window:SetSize(WIDTH, 566)
 window:SetPoint("CENTER")
 window:SetMovable(true)
 window:SetClampedToScreen(true)
 window:EnableMouse(true)
 window:RegisterForDrag("LeftButton")
-window:SetScript("OnDragStart", window.StartMoving)
-window:SetScript("OnDragStop", window.StopMovingOrSizing)
 window:Hide()
 
 Label(window, "Target Finder", "GameFontNormal"):SetPoint("TOP", 0, -5)
@@ -62,13 +60,74 @@ for i = 1, MAX_TARGETS do
   row:SetPoint("TOPLEFT", 16, -94 - (i - 1) * ROW_HEIGHT)
   row.text = Label(row, "")
   row.text:SetPoint("LEFT")
-  row.text:SetPoint("RIGHT", -24, 0)
+  row.text:SetPoint("RIGHT", -46, 0) -- room for the magnifying glass and the remove button
   local remove = CreateFrame("Button", nil, row, "UIPanelCloseButton")
   remove:SetSize(22, 22)
   remove:SetPoint("RIGHT")
   remove:SetScript("OnClick", function() module:Remove(row.name) end)
   targetRows[i] = row
 end
+
+-- A magnifying glass beside each mob that targets just that one. Targeting needs a secure
+-- button, and a window holding secure buttons couldn't be opened, closed or dragged in
+-- combat. So these belong to the screen, not the window: they're laid over the rows, and
+-- put away for the length of a fight.
+local findButtons = {}
+for i = 1, MAX_TARGETS do
+  local find = CreateFrame("Button", "ForeverUtilsFinderRowButton" .. i, UIParent, "SecureActionButtonTemplate")
+  find:SetSize(ROW_HEIGHT, ROW_HEIGHT)
+  find:SetFrameStrata("DIALOG")
+  find:RegisterForClicks("AnyUp", "AnyDown")
+  -- Runs a macro of its own, written for this mob as the click lands.
+  find:SetAttribute("type1", "macro")
+  find:SetAttribute("macro", module.SOLO_MACRO_NAME)
+  find:SetScript("PreClick", function(self) module:Solo(self.name) end)
+  local icon = find:CreateTexture(nil, "ARTWORK")
+  icon:SetSize(14, 14)
+  icon:SetPoint("CENTER")
+  icon:SetTexture("Interface\\Common\\UI-Searchbox-Icon")
+  find:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+  find:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Target " .. (self.name or "this mob"))
+    GameTooltip:AddLine("Targets only this one, whatever else is on your list.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  find:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  find:Hide()
+  findButtons[i] = find
+end
+
+-- Lays the magnifying glasses over their rows, or hides them. Secure buttons can't be
+-- touched in combat, so this does nothing then; they come back when the fight ends.
+local function PlaceFindButtons(hide)
+  if InCombatLockdown() then return end
+  for i, find in ipairs(findButtons) do
+    local row = targetRows[i]
+    local name = not hide and window:IsShown() and row.name
+    local right, top = row:GetRight(), row:GetTop()
+    if name and right and top then
+      find.name = name
+      find:ClearAllPoints()
+      find:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", right - 24, top)
+      find:Show()
+    else
+      find:Hide()
+    end
+  end
+end
+
+function module.OnCombat() PlaceFindButtons(true) end
+
+window:SetScript("OnDragStart", function(self)
+  PlaceFindButtons(true)
+  self:StartMoving()
+end)
+window:SetScript("OnDragStop", function(self)
+  self:StopMovingOrSizing()
+  PlaceFindButtons()
+end)
+window:SetScript("OnHide", function() PlaceFindButtons(true) end)
 
 local overflowNote = Label(window, "", "GameFontDisableSmall")
 overflowNote:SetPoint("TOPLEFT", 16, -96 - MAX_TARGETS * ROW_HEIGHT)
@@ -107,7 +166,7 @@ for i = 1, LIST_ROWS do
       if IsShiftKeyDown() and #entry.names > 0 then
         module:SetTargets(entry.names)
       else
-        module.db.expanded[entry.key] = not entry.open or nil
+        module.db.expanded[entry.key] = not entry.open
         RefreshList()
       end
     elseif IsShiftKeyDown() then
@@ -145,7 +204,7 @@ function RefreshList()
       row.text:SetPoint("RIGHT", row.note, "LEFT", -4, 0)
       if header then
         row.text:SetText(("|cffffd100%s %s|r"):format(entry.open and "-" or "+", entry.title))
-        row.note:SetText(entry.count or #entry.names)
+        row.note:SetText(entry.count)
       else
         local text = entry.label or entry.name
         row.text:SetText(entry.listed and "|cff888888" .. text .. "|r" or text)
@@ -157,7 +216,7 @@ function RefreshList()
   moreNote:SetText(below > 0 and ("%d more - scroll down"):format(below) or "")
   listTitle:SetText(searching and "Search results" or "Pick from")
   listHint:SetText(searching and "Click to find, shift-click to add."
-    or "Shift-click a quest to find all its mobs.")
+    or "Click a mob. Shift-click a quest: all its mobs.")
 
   local state = module:DatabaseState()
   local hint = "No known mob matches. Enter uses the name anyway."
@@ -184,6 +243,34 @@ allowDead:SetScript("OnClick", function(self)
   module.db.allowDead = self:GetChecked() and true or false
   module:Changed()
 end)
+
+-- The raid marker the macro puts on the mob it finds: one icon each, the chosen one lit.
+Label(window, "Mark with"):SetPoint("BOTTOMLEFT", 16, 66)
+local markerButtons = {}
+for i = 0, 8 do
+  local pick = CreateFrame("Button", nil, window)
+  pick:SetSize(18, 18)
+  pick:SetPoint("BOTTOMLEFT", 80 + (i == 0 and 0 or 6 + i * 18), 63)
+  if i == 0 then
+    pick.text = Label(pick, "-", "GameFontHighlightLarge") -- no marker
+    pick.text:SetPoint("CENTER")
+  else
+    pick.icon = pick:CreateTexture(nil, "ARTWORK")
+    pick.icon:SetAllPoints()
+    pick.icon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. i)
+  end
+  pick:SetScript("OnClick", function()
+    module.db.marker = i
+    module:Changed()
+  end)
+  pick:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(MARKERS[i + 1].name)
+    GameTooltip:Show()
+  end)
+  pick:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  markerButtons[i] = pick
+end
 
 local macroButton = CreateFrame("Button", nil, window, "UIPanelButtonTemplate")
 macroButton:SetSize(110, 22)
@@ -224,13 +311,17 @@ local function RefreshWindow()
   overflowNote:SetText(used < #db.targets
     and ("Only the first %d fit in the macro."):format(used) or "")
 
+  PlaceFindButtons()
   RefreshList()
   allowDead:SetChecked(db.allowDead)
+  for i, pick in pairs(markerButtons) do pick:SetAlpha(i == db.marker and 1 or 0.3) end
 end
 
 window:SetScript("OnShow", function()
   module:LoadDatabase()
   RefreshWindow()
+  -- The rows have no position until the window has been drawn once.
+  C_Timer.After(0, function() PlaceFindButtons() end)
 end)
 search:SetScript("OnTextChanged", function()
   offset = 0
@@ -477,6 +568,15 @@ function module:BuildOptions(UI, anchor)
   local minimapPins = UI.Checkbox("Show spawn points on the minimap",
     "Where your mobs are known to spawn, drawn with the marker below. Needs QuestieDB.",
     self.db, "minimapPins", targetMenu, nil, { onChange = module.UpdateUI })
-  return (UI.Dropdown("Mark the mob with", self.db, "marker", MARKERS, minimapPins, nil, 120,
-    function() module:Changed() end))
+  local marker, dropdown = UI.Dropdown("Mark the mob with", self.db, "marker", MARKERS, minimapPins, nil, 120,
+    function() module:Changed() end)
+  local open = UI.Button("Open Target Finder", 150, function()
+    if module.active then
+      if not window:IsShown() then module.ToggleWindow() end
+    else
+      ns.Print("Target Finder is off - tick Enable Target Finder first")
+    end
+  end)
+  open:SetPoint("LEFT", dropdown, "RIGHT", 16, 0)
+  return marker
 end

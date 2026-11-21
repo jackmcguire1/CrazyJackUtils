@@ -29,7 +29,7 @@ With Black Ooze and Green Ooze on the list, the macro is:
 
 - **Picking mobs**
   - `/tf` opens the window. Type a name and press Enter, or click a suggestion. Shift-click, or Shift+Enter, adds to the list instead of replacing it.
-  - With nothing typed, the window lists your unfinished quests and a "Recently seen" group, each as a one-line section. Click a section to open or close it (it stays that way), click a mob in it to find that mob, or shift-click the section to find all its mobs. The list scrolls with the mouse wheel.
+  - With nothing typed, the window lists a section per unfinished quest, open to start with, then "Recently seen mobs", "Nearest services" and "Nearest profession trainers", closed to start with. Click a section to open or close it (it stays that way), click a mob in it to find that mob, or shift-click a quest to find all its mobs. The list scrolls with the mouse wheel.
   - Quest mobs come from QuestieDB when it's installed: the mobs to kill, and for "collect" objectives the mobs that drop the item. Without it they're read from unfinished kill objectives' text (English clients only).
   - Recently seen mobs are ones you've hovered, targeted or seen a nameplate for.
   - With the [QuestieDB](https://github.com/Questie/QuestieDB) addon installed (Questie uses it), typing also searches every NPC it knows. ForeverUtils reads the names through QuestieDB's public API (`NpcDB.GetAllIds` and `NpcDB.name`) the first time the window opens; nothing is bundled. Without it, only quest mobs and mobs you've seen are suggested.
@@ -47,11 +47,12 @@ With Black Ooze and Green Ooze on the list, the macro is:
   - Turn it off with **Show spawn points on the minimap** in the options panel.
 - **Targeting**
   - The floating button stays on screen; with nothing to find it reads "Target Finder" and a click opens the window. Untick **Keep the button when there's nothing to find** in the options to have it show only while the list isn't empty. Click it to target, right-click to open the window, Shift-click for the nearest-services menu, Shift-drag to move it.
+  - In the window, the magnifying glass beside a mob on your list targets just that mob. It runs a second macro, `FUFindOne`, which is written for that mob as you click and created the first time you use a magnifying glass. `FUFind` is never touched by it. These are secure buttons laid over the window rather than part of it, so the window can still be opened and moved in combat; they're hidden while you're in combat.
   - **Pick up macro** in the window puts `FUFind` on your cursor to drop on an action bar.
   - "Target a mob on the find list" in the key bindings presses the floating button.
 - **Settings**
   - **Include dead mobs** in the window drops the `[dead]` checks.
-  - The raid marker, and whether the floating button shows, are in the options panel.
+  - **Mark with** in the window picks the raid marker, or none. It's also in the options panel, along with whether the floating button shows and an **Open Target Finder** button.
   - **Show on mob tooltips** in the options panel adds a line when you hover a mob on your list: "the only mob you're finding", or "finding, 2 of 3 on your list". It only adds a line, so other addons' tooltip lines are unaffected.
 - **Limits**
   - A macro holds 255 characters, which is three or four mobs. Ones that don't fit are greyed out in the window.

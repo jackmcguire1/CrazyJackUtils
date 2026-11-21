@@ -10,9 +10,9 @@ Looking for a particular mob? Pick it from a list and ForeverUtils writes the ta
 
 - **No more editing macros.** ForeverUtils creates a macro called `FUFind` and rewrites it whenever your find list changes. Put it on an action bar once and it always targets what you're currently looking for.
 - **Search instead of typing exact names.** Type part of a name and pick from the matches. With Questie's database (QuestieDB) installed, the search covers every mob it knows.
-- **Your quests, ready to pick from.** The window lists your unfinished quests. Open one to see its mobs, including the mobs that drop items you need to collect, and click one to find it. Shift-click a quest to find all its mobs at once.
+- **Your quests, ready to pick from.** The window lists your unfinished quests with their mobs, including the mobs that drop items you need to collect. Click one to find it. Shift-click a quest to find all its mobs at once.
 - **Set it from the mob in front of you.** Target a mob and click **Find** on the target frame, pick **Find this mob** from its right-click menu, or hover a mob and press a key you've bound.
-- **Several mobs at once.** Add more than one mob and the macro tries each in turn until it finds one.
+- **Several mobs at once.** Add more than one mob and the macro tries each in turn until it finds one. To go for a particular one, click the magnifying glass beside it in the window.
 - **Skips corpses.** Dead mobs are ignored unless you tick **Include dead mobs**.
 - **A button if you'd rather click.** A small floating button targets with a click, opens the list with a right-click and finds a service with a shift-click. It can hide while you have nothing to find, or be turned off.
 - **Tooltip reminder.** Hovering a mob on your find list says so, and whether it's the only one you're finding.
@@ -48,7 +48,8 @@ Looking for a particular mob? Pick it from a list and ForeverUtils writes the ta
 Open them with `/fu`, the minimap button, or Options → AddOns → ForeverUtils.
 
 - Turn ForeverUtils, or any single module, on or off.
-- Choose the raid marker Target Finder puts on the mob it finds, or none.
+- Choose the raid marker Target Finder puts on the mob it finds, or none. You can also pick it in the `/tf` window.
+- Open the Target Finder window.
 - Show or hide the floating button, the **Find** button on the target frame, the right-click menu entries, the tooltip line and the minimap spawn points.
 - Show or hide the minimap button.
 
@@ -77,4 +78,4 @@ Under Key Bindings → AddOns → ForeverUtils:
 - **The minimap shows spawn points, not the mob itself.** WoW doesn't tell addons where a mob is, so the markers show where it's known to spawn.
 - **Profession and class trainers are matched by their title.** That works on English clients only.
 - **QuestieDB is optional.** Without it, Target Finder suggests mobs from your quests' kill objectives (English clients only) and mobs you've been near. With it, you can search every mob, see which mobs drop quest items, find the nearest service and see spawn points on the minimap. QuestieDB's coverage of Forever's new mobs is still growing.
-- **Don't rename the `FUFind` macro.** ForeverUtils finds it by name. Changing its icon is fine.
+- **Don't rename the `FUFind` macro.** ForeverUtils finds it by name. Changing its icon is fine. The same goes for `FUFindOne`, a second macro the magnifying glasses use.
