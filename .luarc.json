@@ -24,12 +24,22 @@
   ],
   "workspace.checkThirdParty": false,
   "diagnostics.globals": [
+    "BINDING_HEADER_FOREVERUTILS",
+    "BINDING_NAME_FOREVERUTILS_FIND_HOVER",
     "ForeverUtilsDB",
+    "ForeverUtils_FindHover",
+    "SLASH_FOREVERUTILSFINDER1",
+    "SLASH_FOREVERUTILSFINDER2",
     "SLASH_FOREVERUTILS1",
     "SLASH_FOREVERUTILS2",
     "InterfaceOptions_AddCategory",
+    "ItemDB",
+    "NpcDB",
+    "QuestDB",
     "InterfaceOptionsFrame_OpenToCategory",
     "Settings",
-    "SlashCmdList"
+    "SlashCmdList",
+    "TargetFrame",
+    "TooltipDataProcessor"
   ]
 }

@@ -1,0 +1,73 @@
+name: CurseForge
+
+# Uploads the zip attached to a published GitHub release, so CurseForge gets the
+# exact file production.yml built and checked.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to upload, e.g. v1.0.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Upload to CurseForge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          # A variable rather than a TOC line, so older tags can still be uploaded.
+          CF_PROJECT_ID: ${{ vars.CF_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          toc=ForeverUtils/ForeverUtils.toc
+
+          if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_PROJECT_ID" ]; then
+            echo "::notice::CF_API_TOKEN secret or CF_PROJECT_ID variable not set, skipping upload"
+            exit 0
+          fi
+
+          # Interface 16001 is game version 1.60.1. 88568 is CurseForge's
+          # game version type for WoW Forever.
+          interface=$(sed -n 's/^## Interface: *//p' "$toc" | tr -d '\r')
+          game_version="${interface:0:1}.$((10#${interface:1:2})).$((10#${interface:3:2}))"
+          version_id=$(curl -fsS -H "x-api-token: $CF_API_TOKEN" https://wow.curseforge.com/api/game/wow/versions \
+            | jq -r --arg v "$game_version" '[.[] | select(.gameVersionTypeID == 88568 and .name == $v)][0].id // empty')
+          if [ -z "$version_id" ]; then
+            echo "::error::CurseForge has no WoW Forever game version $game_version"
+            exit 1
+          fi
+
+          zip="ForeverUtils-$TAG.zip"
+          gh release download "$TAG" --pattern "$zip"
+          release_type=$(gh release view "$TAG" --json isPrerelease --jq 'if .isPrerelease then "beta" else "release" end')
+
+          jq -n --arg name "$TAG" --argjson version "$version_id" --arg type "$release_type" \
+            --rawfile changelog CHANGELOG.md \
+            '{displayName: $name, gameVersions: [$version], releaseType: $type,
+              changelog: $changelog, changelogType: "markdown"}' > metadata.json
+
+          echo "Uploading $zip ($game_version, $release_type) to CurseForge project $CF_PROJECT_ID"
+          status=$(curl -sS --retry 3 --retry-delay 10 -o response.json -w '%{http_code}' \
+            -H "x-api-token: $CF_API_TOKEN" \
+            -F "metadata=<metadata.json" \
+            -F "file=@$zip" \
+            "https://wow.curseforge.com/api/projects/$CF_PROJECT_ID/upload-file")
+          cat response.json; echo
+          if [ "$status" != 200 ]; then
+            echo "::error::CurseForge upload failed (HTTP $status)"
+            exit 1
+          fi

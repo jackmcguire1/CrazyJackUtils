@@ -12,6 +12,45 @@ A WoW: Forever addon that collects small utilities in one place. Each utility is
 - `/fu on|off` turns everything on or off. `/fu <module>` toggles one module, and `/fu <module> on|off` sets it.
 - `/fu status` lists the modules. `/fu debug` prints what the addon is doing.
 
+## Target Finder
+
+Replaces a hand-edited targeting macro. You pick the mobs; ForeverUtils keeps a general macro called `FUFind` up to date, and that macro does the targeting. Addons can't target units themselves, so there is always a macro or button to press.
+
+With Black Ooze and Green Ooze on the list, the macro is:
+
+```
+/cleartarget
+/targetexact Black Ooze
+/cleartarget [dead]
+/targetexact [noexists] Green Ooze
+/cleartarget [dead]
+/tm [exists,nodead] 1
+```
+
+- **Picking mobs**
+  - `/tf` opens the window. Type a name and press Enter, or click a suggestion. Shift-click, or Shift+Enter, adds to the list instead of replacing it.
+  - With nothing typed, the window lists your unfinished quests and a "Recently seen" group, each as a one-line section. Click a section to open or close it (it stays that way), click a mob in it to find that mob, or shift-click the section to find all its mobs. The list scrolls with the mouse wheel.
+  - Quest mobs come from QuestieDB when it's installed: the mobs to kill, and for "collect" objectives the mobs that drop the item. Without it they're read from unfinished kill objectives' text (English clients only).
+  - Recently seen mobs are ones you've hovered, targeted or seen a nameplate for.
+  - With the [QuestieDB](https://github.com/Questie/QuestieDB) addon installed (Questie uses it), typing also searches every NPC it knows. ForeverUtils reads the names through QuestieDB's public API (`NpcDB.GetAllIds` and `NpcDB.name`) the first time the window opens; nothing is bundled. Without it, only quest mobs and mobs you've seen are suggested.
+  - `/tf <name>` finds one mob, `/tf + <name>` adds one, `/tf - <name>` removes one, `/tf clear` empties the list and `/tf list` prints it.
+  - With a mob targeted, click the **Find** button on the target frame (shift-click adds instead of replacing), or right-click the target's portrait and pick **Find this mob** or **Add to find list**. Both can be turned off in the options panel.
+  - `/tf hover` finds the mob under your cursor, or your target. It's also a key binding: Key Bindings → AddOns → ForeverUtils → "Find the mob under the cursor".
+- **Targeting**
+  - The floating button appears while the list isn't empty. Click it to target, right-click to open the window, Shift-drag to move it.
+  - **Pick up macro** in the window puts `FUFind` on your cursor to drop on an action bar.
+  - "Target a mob on the find list" in the key bindings presses the floating button.
+- **Settings**
+  - **Include dead mobs** in the window drops the `[dead]` checks.
+  - The raid marker, and whether the floating button shows, are in the options panel.
+  - **Show on mob tooltips** in the options panel adds a line when you hover a mob on your list: "the only mob you're finding", or "finding, 2 of 3 on your list". It only adds a line, so other addons' tooltip lines are unaffected.
+- **Limits**
+  - A macro holds 255 characters, which is three or four mobs. Ones that don't fit are greyed out in the window.
+  - Macros and the floating button can't change in combat. Changes made in combat apply when it ends.
+  - Pressing the macro clears your target first, so if nothing is found you end up with no target.
+
+The logic is in `Modules/Finder.lua` and tested by `spec/finder_spec.lua`. The window and button are in `Modules/FinderUI.lua` and need checking in game.
+
 ## Layout
 
 ```
@@ -19,6 +58,7 @@ ForeverUtils/            the addon, as it's installed
   ForeverUtils.toc
   Core.lua               saved variables, module registry, slash command
   Modules/               one file per utility
+  Bindings.xml           key bindings
   Options.lua            options panel and the ns.UI widgets
   Minimap.lua            minimap button
 spec/                    busted tests and the fake WoW client
@@ -101,9 +141,19 @@ The options panel and minimap button aren't tested, since they're almost all WoW
   - The version comes from `## Version` in `ForeverUtils/ForeverUtils.toc`.
   - A new push to `main` replaces that version's draft.
   - Once you publish a release, later pushes with the same version leave it alone.
+  - Versions are calendar-based: `<year>.<ISO week>.<release that week>`, for example `2026.47.1`. `date +%G.%V` prints the first two parts.
   - To release a new version, bump `## Version` in the `.toc` and rewrite `CHANGELOG.md`, which becomes the release notes.
 
-There is no CurseForge upload yet.
+### CurseForge
+
+When you publish a GitHub release, `curseforge.yml` uploads that release's `ForeverUtils-v<version>.zip` to CurseForge. It's the same file `production.yml` built and checked.
+
+- **Game version:** taken from `## Interface` in the `.toc`. For example `16001` becomes WoW Forever `1.60.1`.
+- **Changelog:** taken from `CHANGELOG.md`.
+- **File type:** a GitHub prerelease is uploaded to CurseForge as a beta file; anything else as a release.
+- **Re-uploading:** to upload an existing release again, run the workflow manually from the Actions tab and give it the tag.
+
+It needs the `CF_PROJECT_ID` repository variable and the `CF_API_TOKEN` repository secret, both already set. Without them the workflow skips the upload. `DESCRIPTION.md` is the text for the CurseForge project page and is pasted in by hand.
 
 ## License
 

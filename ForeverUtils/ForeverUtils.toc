@@ -2,16 +2,19 @@
 ## Title: ForeverUtils
 ## Notes: A collection of small utilities for WoW: Forever.
 ## Author: Jack McGuire
-## Version: 0.1.0
+## Version: 2026.47.1
 ## X-License: Apache-2.0
 ## SavedVariables: ForeverUtilsDB
+## OptionalDeps: QuestieDB
 ## IconTexture: Interface\Icons\INV_Misc_Wrench_01
 ## AddonCompartmentFunc: ForeverUtils_OnAddonCompartmentClick
 
 Core.lua
 
 # Modules register themselves with Core, so they load after it and before the options.
-# Add each one here, e.g. Modules\AutoSell.lua
+# Add each one here.
+Modules\Finder.lua
+Modules\FinderUI.lua
 
 Options.lua
 Minimap.lua
