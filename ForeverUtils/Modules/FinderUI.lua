@@ -117,7 +117,10 @@ local function PlaceFindButtons(hide)
   end
 end
 
-function module.OnCombat() PlaceFindButtons(true) end
+function module.OnCombat()
+  PlaceFindButtons(true)
+  if module.HideMenu then module.HideMenu() end
+end
 
 window:SetScript("OnDragStart", function(self)
   PlaceFindButtons(true)
@@ -200,7 +203,7 @@ function RefreshList()
     if entry then
       local header = entry.kind == "header"
       row.text:ClearAllPoints()
-      row.text:SetPoint("LEFT", header and 2 or 14, 0)
+      row.text:SetPoint("LEFT", (header and 2 or 14) + (entry.level or 0) * 12, 0)
       row.text:SetPoint("RIGHT", row.note, "LEFT", -4, 0)
       if header then
         row.text:SetText(("|cffffd100%s %s|r"):format(entry.open and "-" or "+", entry.title))
@@ -216,7 +219,7 @@ function RefreshList()
   moreNote:SetText(below > 0 and ("%d more - scroll down"):format(below) or "")
   listTitle:SetText(searching and "Search results" or "Pick from")
   listHint:SetText(searching and "Click to find, shift-click to add."
-    or "Click a mob. Shift-click a quest: all its mobs.")
+    or "Click a mob. Shift-click a quest: all its mobs.") -- search results have no level
 
   local state = module:DatabaseState()
   local hint = "No known mob matches. Enter uses the name anyway."
@@ -361,8 +364,63 @@ button:SetAttribute("macro", module.MACRO_NAME)
 button:SetAttribute("shift-type1", "helper")
 button:Hide()
 
--- The shift-click menu: find the nearest vendor, trainer and so on.
-local function ShowHelperMenu(owner)
+-- The shift-click menu: find the nearest vendor, trainer and so on, and target it in the
+-- same click. Only a secure button can target, so this is a panel of them and not one of
+-- the game's menus. Each one finds its service as the click lands (which rewrites the
+-- macro) and then runs the macro.
+local MENU_ROW, MENU_COLUMN = 18, 124
+local helperMenu = CreateFrame("Frame", "ForeverUtilsFinderMenu", UIParent)
+helperMenu:SetFrameStrata("DIALOG")
+helperMenu:SetClampedToScreen(true)
+helperMenu:Hide()
+local menuBack = helperMenu:CreateTexture(nil, "BACKGROUND")
+menuBack:SetAllPoints()
+menuBack:SetColorTexture(0, 0, 0, 0.9)
+
+-- Behind the menu, covering the screen: a click anywhere else closes it.
+local menuCatcher = CreateFrame("Button", nil, UIParent)
+menuCatcher:SetAllPoints()
+menuCatcher:SetFrameStrata("HIGH")
+menuCatcher:RegisterForClicks("AnyUp")
+menuCatcher:Hide()
+
+local function HideHelperMenu()
+  menuCatcher:Hide()
+  if not InCombatLockdown() then helperMenu:Hide() end -- it holds secure buttons
+end
+menuCatcher:SetScript("OnClick", HideHelperMenu)
+
+do
+  local counts = { [false] = 0, [true] = 0 } -- rows so far in each column
+  for _, column in ipairs({ { false, "Find the nearest" }, { true, "Profession trainer" } }) do
+    local title = Label(helperMenu, column[2], "GameFontNormalSmall")
+    title:SetPoint("TOPLEFT", 8 + (column[1] and MENU_COLUMN or 0), -8)
+  end
+  for _, service in ipairs(module.SERVICES) do
+    local row = counts[service.profession] + 1
+    counts[service.profession] = row
+    local pick = CreateFrame("Button", nil, helperMenu, "SecureActionButtonTemplate")
+    pick:SetSize(MENU_COLUMN - 8, MENU_ROW)
+    pick:SetPoint("TOPLEFT", 6 + (service.profession and MENU_COLUMN or 0), -8 - row * MENU_ROW)
+    pick:RegisterForClicks("AnyUp", "AnyDown")
+    pick:SetAttribute("type1", "macro")
+    pick:SetAttribute("macro", module.MACRO_NAME)
+    pick:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    Label(pick, service.name):SetPoint("LEFT", 4, 0)
+    -- On the way down, so the macro is ready whichever half of the click the game acts on.
+    pick:SetScript("PreClick", function(_, _, down)
+      if down then module:FindNearest(service.key) end
+    end)
+    pick:SetScript("PostClick", function(_, _, down)
+      if not down then HideHelperMenu() end
+    end)
+  end
+  helperMenu:SetSize(MENU_COLUMN * 2 + 8, 16 + (math.max(counts[false], counts[true]) + 1) * MENU_ROW)
+end
+
+-- In combat the panel can't be shown, so there it's one of the game's menus: it finds
+-- the service but can't target it for you.
+local function ShowPlainMenu(owner)
   if not (MenuUtil and MenuUtil.CreateContextMenu) then
     module.ToggleWindow()
     return
@@ -380,6 +438,24 @@ local function ShowHelperMenu(owner)
       end
     end
   end)
+end
+
+module.HideMenu = HideHelperMenu
+
+local function ShowHelperMenu(owner)
+  if InCombatLockdown() then
+    ShowPlainMenu(owner)
+    return
+  end
+  if helperMenu:IsShown() then
+    HideHelperMenu()
+    return
+  end
+  module:LoadDatabase() -- so the NPC list is ready by the time you pick
+  helperMenu:ClearAllPoints()
+  helperMenu:SetPoint("BOTTOMLEFT", owner, "TOPLEFT", 0, 4)
+  menuCatcher:Show()
+  helperMenu:Show()
 end
 
 button:SetScript("PostClick", function(self, mouseButton, down)

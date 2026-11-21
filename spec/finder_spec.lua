@@ -523,15 +523,16 @@ describe("the tooltip line", function()
 end)
 
 describe("the window's list", function()
-  -- Rows as text: "+ Title (n)" for a closed section, "- Title (n)" for an open one,
+  -- Rows as text, indented two spaces a level: "+ Title (n)" for a closed section, "- Title (n)" for an open one,
   -- "  Name [note]" for a mob, with * after mobs already on the find list.
   local function rows(w, query, expanded)
     local out = {}
     for i, entry in ipairs(w.finder:Browse(query, expanded or {}, 10)) do
       if entry.kind == "header" then
-        out[i] = ("%s %s (%d)"):format(entry.open and "-" or "+", entry.title, entry.count)
+        out[i] = ("%s%s %s (%d)"):format(("  "):rep(entry.level), entry.open and "-" or "+", entry.title, entry.count)
       else
-        out[i] = "  " .. entry.name .. (entry.note and " [" .. entry.note .. "]" or "") .. (entry.listed and " *" or "")
+        out[i] = ("  "):rep((entry.level or 0) + 1) .. entry.name
+          .. (entry.note and " [" .. entry.note .. "]" or "") .. (entry.listed and " *" or "")
       end
     end
     return out
@@ -547,24 +548,25 @@ describe("the window's list", function()
     w:Fire("QUEST_LOG_UPDATE")
   end
 
-  it("shows each quest as an open section, then recently seen mobs, closed", function()
+  it("starts with Quests and recently seen mobs, both closed", function()
     local w = load({ finder = { seen = { Kobold = 5 } } })
     quests(w)
-    assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze", "+ Recently seen mobs (1)" }, rows(w, ""))
+    assert.same({ "+ Quests (1)", "+ Recently seen mobs (1)" }, rows(w, ""))
   end)
 
-  it("remembers the sections you open and close, marking mobs already being found", function()
+  it("shows every quest and its mobs once Quests is opened, and remembers what you close", function()
     local w = load({ finder = { seen = { Kobold = 5 }, targets = { "Green Ooze" } } })
     quests(w)
-    assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze *", "+ Recently seen mobs (1)" }, rows(w, " "))
-    assert.same({ "+ Ooze Trouble (2)", "- Recently seen mobs (1)", "  Kobold" },
-      rows(w, "", { quest2 = false, seen = true }))
+    assert.same({ "- Quests (1)", "  - Ooze Trouble (2)", "    Black Ooze", "    Green Ooze *",
+      "+ Recently seen mobs (1)" }, rows(w, " ", { quests = true }))
+    assert.same({ "- Quests (1)", "  + Ooze Trouble (2)", "- Recently seen mobs (1)", "  Kobold" },
+      rows(w, "", { quests = true, quest2 = false, seen = true }))
   end)
 
   it("gives a section every mob name, to find them all at once", function()
     local w = load()
     quests(w)
-    assert.same({ "Black Ooze", "Green Ooze" }, w.finder:Browse("", {}, 10)[1].names)
+    assert.same({ "Black Ooze", "Green Ooze" }, w.finder:Browse("", { quests = true }, 10)[2].names)
   end)
 
   it("shows search results instead while something is typed", function()
@@ -592,9 +594,10 @@ describe("the window's list", function()
       local w = load({ npcs = NPCS, questDb = QUEST_DB, items = ITEMS })
       quests(w)
       assert.same({
-        "- Ooze Trouble (2)", "  Black Ooze", "  Ooze Lord",
-        "- Candles (2)", "  Kobold Digger [Kobold Candle]", "  Kobold Miner [Kobold Candle]",
-      }, rows(w, ""))
+        "- Quests (2)",
+        "  - Ooze Trouble (2)", "    Black Ooze", "    Ooze Lord",
+        "  - Candles (2)", "    Kobold Digger [Kobold Candle]", "    Kobold Miner [Kobold Candle]",
+      }, rows(w, "", { quests = true }))
     end)
 
     it("offers those mobs when searching, too", function()
@@ -606,7 +609,8 @@ describe("the window's list", function()
     it("falls back to the objective text for a quest it doesn't know", function()
       local w = load({ npcs = NPCS, questDb = {}, items = ITEMS })
       quests(w)
-      assert.same({ "- Ooze Trouble (2)", "  Black Ooze", "  Green Ooze" }, rows(w, ""))
+      assert.same({ "- Quests (1)", "  - Ooze Trouble (2)", "    Black Ooze", "    Green Ooze" },
+        rows(w, "", { quests = true }))
     end)
   end)
 end)

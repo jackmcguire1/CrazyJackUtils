@@ -680,10 +680,11 @@ end
 -- What the window lists under the search box, as rows to draw:
 --   { kind = "header", key = ..., title = ..., names = { every mob in it }, open = bool }
 --   { kind = "mob", name = ..., note = ..., listed = already on the find list }
--- With something typed that's the search results. With nothing typed it's a section per
--- quest, then mobs seen recently and, with QuestieDB, the nearest services and
--- profession trainers. Quests start open and the rest closed; `expanded`
--- holds the sections you've opened or closed since. A service's row also has
+-- With something typed that's the search results. With nothing typed it's four sections,
+-- closed to start with: Quests, mobs seen recently and, with QuestieDB, the nearest
+-- services and profession trainers. Quests holds a section per quest, each open to start
+-- with, so opening Quests shows every quest and its mobs. Rows inside Quests have
+-- level = 1, to be drawn indented. `expanded` holds the sections you've opened or closed. A service's row also has
 -- label = "Repair: <name>" to show and service = its key. Service headers have
 -- names = {}: there's no finding them all at once.
 function module:Browse(query, expanded, limit)
@@ -695,23 +696,27 @@ function module:Browse(query, expanded, limit)
     end
     return entries
   end
-  local function header(key, title, names, count, startsOpen)
+  local function header(key, title, names, count, startsOpen, level)
     local open = expanded[key]
     if open == nil then open = startsOpen end
     open = open and true or false
-    table.insert(entries, { kind = "header", key = key, title = title, names = names, count = count, open = open })
+    table.insert(entries, { kind = "header", key = key, title = title, names = names, count = count,
+      open = open, level = level or 0 })
     return open
   end
-  local function section(key, title, mobs, startsOpen)
+  local function section(key, title, mobs, startsOpen, level)
     local names = {}
     for i, mob in ipairs(mobs) do names[i] = mob.name end
-    if not header(key, title, names, #names, startsOpen) then return end
+    if not header(key, title, names, #names, startsOpen, level) then return end
     for _, mob in ipairs(mobs) do
-      table.insert(entries, { kind = "mob", name = mob.name, note = mob.item,
+      table.insert(entries, { kind = "mob", name = mob.name, note = mob.item, level = level or 0,
         listed = IndexOf(self.db.targets, mob.name) ~= nil })
     end
   end
-  for _, group in ipairs(QuestGroups()) do section(group.key, group.title, group.mobs, true) end
+  local quests = QuestGroups()
+  if #quests > 0 and header("quests", "Quests", {}, #quests, false) then
+    for _, group in ipairs(quests) do section(group.key, group.title, group.mobs, true, 1) end
+  end
   local seen = {}
   for i, name in ipairs(SeenNames(self.db.seen)) do
     if i > SEEN_SHOWN then break end
@@ -725,7 +730,7 @@ function module:Browse(query, expanded, limit)
     for _, service in ipairs(SERVICES) do
       local hit = service.profession == profession and nearest[service.key]
       if hit then
-        table.insert(rows, { kind = "mob", name = hit.name, service = service.key,
+        table.insert(rows, { kind = "mob", name = hit.name, service = service.key, level = 0,
           label = service.name .. ": " .. hit.name, note = ("%d yd"):format(hit.distance + 0.5),
           listed = IndexOf(self.db.targets, hit.name) ~= nil })
       end

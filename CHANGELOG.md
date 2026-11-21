@@ -1,13 +1,11 @@
-# ForeverUtils v2026.47.3
+# ForeverUtils v2026.47.4
 
-The Target Finder window is easier to read, and you can choose the raid marker in it.
+The Target Finder window's list is tidier, and the shift-click menu now targets what you pick.
 
 ## New
 
-- **Choose the marker in the window.** A row of raid marker icons sits near the bottom of the `/tf` window. Click one to have the macro use it, or the dash for no marker. The minimap spawn points change to match.
-- **Target one mob from the window.** Each mob on your find list has a magnifying glass beside it. Click it to target just that mob, whatever else is on the list. This uses a second macro called `FUFindOne`, created the first time you click one. The magnifying glasses are hidden during combat.
-- **Open Target Finder from the options.** There's an **Open Target Finder** button in its section of the options panel.
+- **Picking a service targets it too.** Choosing Flight master, Repair or any other service from the floating button's shift-click menu now targets the NPC in the same click, if they're close enough to target. Before, it only put them on your find list. In combat the menu still only finds them.
 
 ## Changed
 
-- **Quests start open in the window.** Each quest's mobs are listed straight away, a click from being found. Recently seen mobs, services and profession trainers follow, closed until you open them. Sections you open or close stay that way.
+- **Quests have their own section.** The `/tf` window's list now starts as four closed sections: **Quests**, **Recently seen mobs**, **Nearest services** and **Nearest profession trainers**. Open **Quests** to see every quest with its mobs listed under it. You can still close a single quest, and shift-click one to find all its mobs. Sections you open or close stay that way.

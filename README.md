@@ -29,7 +29,7 @@ With Black Ooze and Green Ooze on the list, the macro is:
 
 - **Picking mobs**
   - `/tf` opens the window. Type a name and press Enter, or click a suggestion. Shift-click, or Shift+Enter, adds to the list instead of replacing it.
-  - With nothing typed, the window lists a section per unfinished quest, open to start with, then "Recently seen mobs", "Nearest services" and "Nearest profession trainers", closed to start with. Click a section to open or close it (it stays that way), click a mob in it to find that mob, or shift-click a quest to find all its mobs. The list scrolls with the mouse wheel.
+  - With nothing typed, the window lists four sections, closed to start with: "Quests", "Recently seen mobs", "Nearest services" and "Nearest profession trainers". Opening "Quests" shows every unfinished quest with its mobs under it; each quest can be closed on its own. Click a section to open or close it (it stays that way), click a mob in it to find that mob, or shift-click a quest to find all its mobs. The list scrolls with the mouse wheel.
   - Quest mobs come from QuestieDB when it's installed: the mobs to kill, and for "collect" objectives the mobs that drop the item. Without it they're read from unfinished kill objectives' text (English clients only).
   - Recently seen mobs are ones you've hovered, targeted or seen a nameplate for.
   - With the [QuestieDB](https://github.com/Questie/QuestieDB) addon installed (Questie uses it), typing also searches every NPC it knows. ForeverUtils reads the names through QuestieDB's public API (`NpcDB.GetAllIds` and `NpcDB.name`) the first time the window opens; nothing is bundled. Without it, only quest mobs and mobs you've seen are suggested.
@@ -37,7 +37,8 @@ With Black Ooze and Green Ooze on the list, the macro is:
   - With a mob targeted, click the **Find** button on the target frame (shift-click adds instead of replacing), or right-click the target's portrait and pick **Find this mob** or **Add to find list**. Both can be turned off in the options panel.
   - `/tf hover` finds the mob under your cursor, or your target. It's also a key binding: Key Bindings → AddOns → ForeverUtils → "Find the mob under the cursor".
 - **Nearest services** (needs QuestieDB)
-  - Shift-click the floating button for a menu: Vendor, Repair, Banker, Innkeeper, Flight master, Auctioneer, Stable master, Class trainer, and a submenu of profession trainers. Picking one replaces the find list with the nearest NPC offering it and prints how far away it is and in which direction.
+  - Shift-click the floating button for a menu: Vendor, Repair, Banker, Innkeeper, Flight master, Auctioneer, Stable master and Class trainer, with the profession trainers beside them. Picking one replaces the find list with the nearest NPC offering it, prints how far away it is and in which direction, and targets it if it's close enough to target.
+  - The menu is a panel of secure buttons, since only those can target: each one rewrites `FUFind` as the click lands, then runs it. In combat that panel can't be shown, so one of the game's menus opens in its place, which finds the service without targeting it.
   - The window lists the same under **Nearest services** and **Nearest profession trainers**, with distances. `/tf nearest <service>` does it from chat.
   - Only NPCs on your continent and friendly to your faction count. "Nearest" is in a straight line.
   - Services come from QuestieDB's NPC flags. Class and profession trainers are told apart by their title ("Warrior Trainer", "Herbalism Trainer"), which works on English clients only.

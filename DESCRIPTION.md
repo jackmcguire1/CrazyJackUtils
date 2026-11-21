@@ -10,7 +10,7 @@ Looking for a particular mob? Pick it from a list and ForeverUtils writes the ta
 
 - **No more editing macros.** ForeverUtils creates a macro called `FUFind` and rewrites it whenever your find list changes. Put it on an action bar once and it always targets what you're currently looking for.
 - **Search instead of typing exact names.** Type part of a name and pick from the matches. With Questie's database (QuestieDB) installed, the search covers every mob it knows.
-- **Your quests, ready to pick from.** The window lists your unfinished quests with their mobs, including the mobs that drop items you need to collect. Click one to find it. Shift-click a quest to find all its mobs at once.
+- **Your quests, ready to pick from.** Open **Quests** in the window to see your unfinished quests with their mobs, including the mobs that drop items you need to collect. Click one to find it. Shift-click a quest to find all its mobs at once.
 - **Set it from the mob in front of you.** Target a mob and click **Find** on the target frame, pick **Find this mob** from its right-click menu, or hover a mob and press a key you've bound.
 - **Several mobs at once.** Add more than one mob and the macro tries each in turn until it finds one. To go for a particular one, click the magnifying glass beside it in the window.
 - **Skips corpses.** Dead mobs are ignored unless you tick **Include dead mobs**.
