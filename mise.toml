@@ -1,0 +1,46 @@
+[tools]
+uv = "0.13"
+lua = "5.1.5"
+lua-language-server = "3.19"
+actionlint = "1.7"
+
+[tasks.build]
+description = "Check the TOC lists every Lua file in the addon"
+run = "uv run tools/build.py"
+
+[tasks.zip]
+description = "Check the addon and write dist/ForeverUtils.zip to share"
+run = "uv run tools/build.py --zip"
+
+[tasks.install]
+description = "Check the addon and copy it into WoW (set WOW_ADDONS to your Interface/AddOns folder)"
+run = 'uv run tools/build.py --install "${WOW_ADDONS:?set WOW_ADDONS to your _forever_/Interface/AddOns folder}"'
+
+[env]
+WOW_API_REV = "d0b5b51fac4c52c493371b9b18e66ce604ea4326" # Ketho/vscode-wow-api annotations
+
+[tasks.setup]
+description = "Install luacheck, busted and the pinned WoW API annotations"
+run = [
+  "luarocks --tree .luarocks install luacheck 1.2.0",
+  "luarocks --tree .luarocks install busted 2.3.0",
+  '''
+  if [ "$(git -C .cache/wow-api rev-parse HEAD 2>/dev/null)" != "$WOW_API_REV" ]; then
+    rm -rf .cache/wow-api && mkdir -p .cache/wow-api && cd .cache/wow-api
+    git init -q && git remote add origin https://github.com/Ketho/vscode-wow-api
+    git fetch -q --depth 1 origin "$WOW_API_REV" && git checkout -q FETCH_HEAD
+  fi
+  ''',
+]
+
+[tasks.lint]
+description = "luacheck, LuaLS type check against the WoW API, actionlint"
+run = [
+  ".luarocks/bin/luacheck .",
+  "lua-language-server --check . --configpath=\"$PWD/.luarc.json\" --checklevel=Warning --logpath=.cache/luals",
+  "actionlint",
+]
+
+[tasks.test]
+description = "Run the busted tests in spec/ against a fake WoW client"
+run = ".luarocks/bin/busted"

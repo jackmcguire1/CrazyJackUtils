@@ -1,0 +1,64 @@
+name: Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Releases must not be cancelled half-way, so a run in flight is left alone and
+# the next one queues behind it.
+concurrency:
+  group: production-${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # The release below waits on this, so a failure stops the draft being cut.
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  release:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The exact zip the checks built and verified.
+      - name: Download zip
+        uses: actions/download-artifact@v8
+        with:
+          name: ForeverUtils
+
+      - name: Get Version
+        run: |
+          version=$(sed -n 's/^## Version: *//p' ForeverUtils/ForeverUtils.toc | tr -d '\r')
+          echo "ADDON_VERSION=v$version" >> "$GITHUB_ENV"
+
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ env.ADDON_VERSION }}
+        run: |
+          set -euo pipefail
+
+          if RELEASE_JSON=$(gh release view "$TAG" --json isDraft 2>/dev/null); then
+            if [ "$(echo "$RELEASE_JSON" | jq -r '.isDraft')" = "false" ]; then
+              echo "Published release already exists for $TAG, nothing to do"
+              exit 0
+            fi
+
+            echo "Replacing existing draft for $TAG"
+            gh release delete "$TAG" --yes
+          fi
+
+          mv ForeverUtils.zip "ForeverUtils-$TAG.zip"
+          gh release create "$TAG" "ForeverUtils-$TAG.zip" \
+            --draft \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes-file CHANGELOG.md

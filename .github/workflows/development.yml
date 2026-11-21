@@ -1,0 +1,17 @@
+name: Development
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# A new push to a PR makes the run in flight redundant.
+concurrency:
+  group: development-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml

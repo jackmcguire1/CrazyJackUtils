@@ -1,0 +1,17 @@
+## Interface: 16001
+## Title: ForeverUtils
+## Notes: A collection of small utilities for WoW: Forever.
+## Author: Jack McGuire
+## Version: 0.1.0
+## X-License: Apache-2.0
+## SavedVariables: ForeverUtilsDB
+## IconTexture: Interface\Icons\INV_Misc_Wrench_01
+## AddonCompartmentFunc: ForeverUtils_OnAddonCompartmentClick
+
+Core.lua
+
+# Modules register themselves with Core, so they load after it and before the options.
+# Add each one here, e.g. Modules\AutoSell.lua
+
+Options.lua
+Minimap.lua

@@ -1,0 +1,73 @@
+# Lint, test and build, in one place so the development and production workflows
+# cannot drift apart. Called, never triggered directly.
+name: Checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # mise compiles Lua 5.1 from source, which needs the readline headers.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get -o Acquire::Retries=5 install -y libreadline-dev
+
+      - name: Set up mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: lua lua-language-server actionlint
+          cache_key_prefix: mise-lint
+
+      - name: Cache luacheck, busted and WoW API annotations
+        uses: actions/cache@v6
+        with:
+          path: |
+            .luarocks
+            .cache/wow-api
+          key: lint-${{ runner.os }}-${{ hashFiles('mise.toml') }}
+
+      - name: Setup
+        run: mise run setup
+
+      - name: Lint
+        run: mise run lint
+
+      - name: Test
+        run: mise run test
+
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Only uv is needed; don't let `mise run` build Lua too.
+      MISE_TASK_RUN_AUTO_INSTALL: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up mise
+        uses: jdx/mise-action@v5
+        with:
+          install_args: uv
+          cache_key_prefix: mise-build
+
+      # Fails if the TOC and the addon's Lua files don't match.
+      - name: Build
+        run: mise run zip
+
+      - name: Upload zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: ForeverUtils
+          path: dist/ForeverUtils.zip

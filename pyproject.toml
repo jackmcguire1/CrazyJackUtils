@@ -1,0 +1,9 @@
+[project]
+name = "foreverutils-tools"
+version = "0.1.0"
+description = "Build tooling for the ForeverUtils WoW addon"
+requires-python = ">=3.15"
+dependencies = []
+
+[tool.uv]
+package = false

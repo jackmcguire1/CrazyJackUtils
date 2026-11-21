@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.1",
+  "runtime.builtin": {
+    "basic": "disable",
+    "debug": "disable",
+    "io": "disable",
+    "math": "disable",
+    "os": "disable",
+    "package": "disable",
+    "string": "disable",
+    "table": "disable",
+    "utf8": "disable"
+  },
+  "workspace.library": [
+    ".cache/wow-api/Annotations"
+  ],
+  "workspace.ignoreDir": [
+    ".cache",
+    ".luarocks",
+    ".venv",
+    "tools",
+    "spec"
+  ],
+  "workspace.checkThirdParty": false,
+  "diagnostics.globals": [
+    "ForeverUtilsDB",
+    "SLASH_FOREVERUTILS1",
+    "SLASH_FOREVERUTILS2",
+    "InterfaceOptions_AddCategory",
+    "InterfaceOptionsFrame_OpenToCategory",
+    "Settings",
+    "SlashCmdList"
+  ]
+}
