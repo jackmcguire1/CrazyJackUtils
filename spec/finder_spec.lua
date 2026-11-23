@@ -18,6 +18,7 @@ local function load(opts)
     titles = {},        -- [questID] = title, else "Quest <id>"
     -- [npc id] = { flags = ..., title = ..., faction = "A" | "H" | "AH", spawns = { [area] = { { x, y } } } }
     npcInfo = opts.npcInfo or {},
+    secret = {}, -- stands in for a value the game withholds; issecretvalue knows it
     player = { n = 0, w = 0, continent = 0 }, -- nil where the game won't say
     facing = nil,
   }
@@ -48,6 +49,7 @@ local function load(opts)
       assert(not game.combat, "EditMacro in combat")
       game.macros[index].body = body
     end,
+    issecretvalue = function(value) return value == game.secret end,
     UnitExists = function(unit) return game.units[unit] ~= nil end,
     UnitName = function(unit) return game.units[unit] and game.units[unit].name end,
     UnitIsPlayer = function(unit) return game.units[unit].player or false end,
@@ -137,7 +139,7 @@ describe("the macro", function()
       "/cleartarget",
       "/targetexact Black Ooze",
       "/cleartarget [dead]",
-      "/tm [exists,nodead] 1"), w:Macro())
+      "/tm [exists,nodead] 0", "/tm [exists,nodead] 1"), w:Macro())
     assert.equal("FUFind", w.game.macros[1].name)
   end)
 
@@ -151,7 +153,7 @@ describe("the macro", function()
       "/cleartarget [dead]",
       "/targetexact [noexists] Green Ooze",
       "/cleartarget [dead]",
-      "/tm [exists,nodead] 1"), w:Macro())
+      "/tm [exists,nodead] 0", "/tm [exists,nodead] 1"), w:Macro())
   end)
 
   it("can include dead mobs", function()
@@ -162,13 +164,13 @@ describe("the macro", function()
       "/cleartarget",
       "/targetexact Black Ooze",
       "/targetexact [noexists] Green Ooze",
-      "/tm [exists] 1"), w:Macro())
+      "/tm [exists] 0", "/tm [exists] 1"), w:Macro())
   end)
 
   it("uses the chosen marker, or none", function()
     local w = load({ finder = { marker = 8 } })
     w:Tf("Black Ooze")
-    assert.matches("/tm [exists,nodead] 8", w:Macro(), 1, true)
+    assert.matches("/tm [exists,nodead] 0\n/tm [exists,nodead] 8", w:Macro(), 1, true)
     w.finder.db.marker = 0
     w.finder:Changed()
     assert.is_nil(w:Macro():find("/tm", 1, true))
@@ -176,7 +178,8 @@ describe("the macro", function()
 
   it("can be written for one mob on its own", function()
     local w = load({ finder = { targets = { "Black Ooze", "Green Ooze" } } })
-    assert.equal(lines("/cleartarget", "/targetexact Green Ooze", "/cleartarget [dead]", "/tm [exists,nodead] 1"),
+    assert.equal(lines("/cleartarget", "/targetexact Green Ooze", "/cleartarget [dead]",
+      "/tm [exists,nodead] 0", "/tm [exists,nodead] 1"),
       w.finder:MacroTextFor("Green Ooze"))
     w.db.modules.finder.allowDead, w.db.modules.finder.marker = true, 0
     assert.equal(lines("/cleartarget", "/targetexact Green Ooze"), w.finder:MacroTextFor("Green Ooze"))
@@ -251,7 +254,7 @@ describe("the macro", function()
     assert.is_true(used >= 3 and used < 8)
     assert.matches("Mob Name " .. used, text, 1, true)
     assert.is_nil(text:find("Mob Name " .. used + 1, 1, true))
-    assert.matches("/tm %[exists,nodead%] 1$", text)
+    assert.matches("/tm %[exists,nodead%] 0\n/tm %[exists,nodead%] 1$", text)
     assert.equal(8, #w.finder.db.targets)
   end)
 
@@ -298,6 +301,33 @@ describe("the find list", function()
     w:Tf("+ black ooze")
     w:Tf("add Green Ooze")
     assert.same({ "Black Ooze", "Green Ooze" }, w.finder.db.targets)
+  end)
+
+  it("moves a mob up or down the order the macro tries them in", function()
+    local w = load()
+    w.finder:SetTargets({ "Black Ooze", "Green Ooze", "Kobold" })
+    assert.is_true(w.finder:Move("kobold", -1))
+    assert.same({ "Black Ooze", "Kobold", "Green Ooze" }, w.db.modules.finder.targets)
+    assert.matches("/targetexact Black Ooze.+/targetexact %[noexists%] Kobold.+Green Ooze", w:Macro())
+    assert.is_true(w.finder:Move("Black Ooze", 1))
+    assert.same({ "Kobold", "Black Ooze", "Green Ooze" }, w.db.modules.finder.targets)
+    assert.is_false(w.finder:Move("Kobold", -1))     -- already first
+    assert.is_false(w.finder:Move("Green Ooze", 1))  -- already last
+    assert.is_false(w.finder:Move("Nobody", 1))
+    assert.same({ "Kobold", "Black Ooze", "Green Ooze" }, w.db.modules.finder.targets)
+  end)
+
+  it("keeps a history of the last ten mobs found, newest first", function()
+    local w = load()
+    w.finder:SetTargets({ "Black Ooze", "Green Ooze" })
+    w.finder:Add("Kobold")
+    w.finder:Remove("Kobold")
+    w.finder:SetTargets({ "green ooze" }) -- found again: moves to the front, isn't repeated
+    assert.same({ "Green Ooze", "Kobold", "Black Ooze" }, w.db.modules.finder.history)
+    for i = 1, 12 do w.finder:SetTargets({ "Mob " .. i }) end
+    assert.equal(10, #w.db.modules.finder.history)
+    assert.equal("Mob 12", w.db.modules.finder.history[1])
+    assert.equal("Mob 3", w.db.modules.finder.history[10])
   end)
 
   it("removes a mob by name", function()
@@ -379,6 +409,22 @@ describe("suggestions", function()
     w.game.units.nameplate3 = { name = "Red Ooze" }
     w:Fire("NAME_PLATE_UNIT_ADDED", "nameplate3")
     assert.same({ "Red Ooze (seen)", "Green Ooze (seen)", "Black Ooze (seen)" }, w:Names(""))
+  end)
+
+  it("ignores units whose names the game withholds, as in instances", function()
+    local w = load({ finder = { targets = { "Kobold" } } })
+    w.game.units.mouseover = { name = w.game.secret }
+    w.game.units.target = { name = w.game.secret }
+    w.game.units.nameplate1 = { name = "Rat", player = w.game.secret }
+    w:Fire("UPDATE_MOUSEOVER_UNIT")
+    w:Fire("PLAYER_TARGET_CHANGED")
+    w:Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    assert.same({}, w.db.modules.finder.seen)
+    assert.is_false(w.finder:CanFind("target"))
+    assert.is_nil(w.finder:TooltipText(w.game.secret))
+    w:Tf("hover")
+    assert.same({ "Kobold" }, w.db.modules.finder.targets)
+    assert.same({}, w.ns.errors)
   end)
 
   it("doesn't remember players or their pets", function()
@@ -567,6 +613,14 @@ describe("the window's list", function()
     local w = load()
     quests(w)
     assert.same({ "Black Ooze", "Green Ooze" }, w.finder:Browse("", { quests = true }, 10)[2].names)
+  end)
+
+  it("lists the history after the quests, marking mobs still being found", function()
+    local w = load()
+    w.finder:SetTargets({ "Black Ooze" })
+    w.finder:SetTargets({ "Kobold" })
+    assert.same({ "+ History (2)" }, rows(w, ""))
+    assert.same({ "- History (2)", "  Kobold *", "  Black Ooze" }, rows(w, "", { history = true }))
   end)
 
   it("shows search results instead while something is typed", function()

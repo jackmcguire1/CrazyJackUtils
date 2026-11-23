@@ -9,7 +9,7 @@ ns.DEFAULTS = {
 }
 
 -- Slash command words a module key can't shadow.
-local RESERVED = { on = true, off = true, status = true, debug = true }
+local RESERVED = { on = true, off = true, status = true, debug = true, errors = true }
 
 ns.modules = {} -- in registration order
 local byKey = {}
@@ -24,6 +24,40 @@ ns.Print = Print
 
 function ns.Debug(fmt, ...)
   if db and db.debug then Print("|cff888888" .. fmt .. "|r", ...) end
+end
+
+-- In instances and in combat the game hands addons "secret" values in place of some unit
+-- names, numbers and flags. Comparing one, or doing arithmetic on it, is an error.
+-- Returns `value`, or nil if it's secret.
+function ns.Plain(value)
+  if issecretvalue and issecretvalue(value) then return nil end
+  return value
+end
+
+-- Errors caught by ns.Safe this session: ns.errors[i] = { text = ..., count = ... }.
+ns.errors = {}
+local errorsByText = {}
+local MAX_ERRORS = 20
+
+local function Caught(what, ok, ...)
+  if ok then return ... end
+  local text = what .. ": " .. tostring((...))
+  local entry = errorsByText[text]
+  if entry then
+    entry.count = entry.count + 1
+  elseif #ns.errors < MAX_ERRORS then
+    entry = { text = text, count = 1 }
+    errorsByText[text] = entry
+    table.insert(ns.errors, entry)
+    if #ns.errors == 1 then Print("something went wrong and was skipped - /fu errors shows what") end
+  end
+end
+
+-- Calls fn(...) and returns what it returns. If it fails, the error is noted for
+-- /fu errors and nothing is returned, so one bad value can't flood the game with errors.
+-- `what` says what was being done, for the report.
+function ns.Safe(what, fn, ...)
+  return Caught(what, pcall(fn, ...))
 end
 
 -- Copies missing settings from `defaults` into `target`, descending into tables.
@@ -115,7 +149,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
   end
   for _, module in ipairs(ns.modules) do
     local handler = module.active and module.events and module.events[event]
-    if handler then handler(module, ...) end
+    if handler then ns.Safe(module.key .. " " .. event, handler, module, ...) end
   end
 end)
 
@@ -132,6 +166,9 @@ SlashCmdList.FOREVERUTILS = function(input)
   elseif cmd == "debug" then
     db.debug = not db.debug
     Print("debug %s", db.debug and "on" or "off")
+  elseif cmd == "errors" then
+    if #ns.errors == 0 then Print("no errors caught this session") end
+    for _, entry in ipairs(ns.errors) do Print("%dx %s", entry.count, entry.text) end
   elseif cmd == "status" then
     local states = {}
     for _, m in ipairs(ns.modules) do
@@ -145,6 +182,6 @@ SlashCmdList.FOREVERUTILS = function(input)
     ns.Refresh()
     Print("%s %s", module.name, module.db.enabled and "on" or "off")
   else
-    Print("/fu - options | on | off | status | debug | <module> [on|off]")
+    Print("/fu - options | on | off | status | debug | errors | <module> [on|off]")
   end
 end

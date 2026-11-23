@@ -29,7 +29,8 @@ There is no WoW client on the development machine. The tests run against a fake 
 - **Never create a macro at login.** The macro list may not have loaded, and a second copy would be made. Only edit one that exists; create on a player action.
 - **A macro holds 255 characters.**
 - **Addons can't see where a mob is.** The minimap pins are QuestieDB's spawn points, not live positions.
-- **Values from the game can be secret.** Check with `issecretvalue` before comparing or doing arithmetic on unit names, positions and the like.
+- **Values from the game can be secret.** In instances and in combat, unit names, positions and flags can be secret values, and comparing one (even `name == ""`) or doing arithmetic on it is an error. Pass them through `ns.Plain` first, which returns nil for a secret.
+- **Code the game calls often goes through `ns.Safe`.** Event handlers already do. Wrap tooltip hooks, menu callbacks and `OnUpdate` scripts too, so one bad value is noted for `/fu errors` and not raised on every call.
 - **QuestieDB is optional.** Guard every use of `NpcDB`, `QuestDB`, `ItemDB` and `LibQuestieDB`, and keep a fallback or a clear message for players without it.
 
 ## Conventions

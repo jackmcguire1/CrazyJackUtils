@@ -168,3 +168,40 @@ describe("slash commands", function()
     assert.matches("options | on | off", w.printed[2], 1, true)
   end)
 end)
+
+describe("errors in a module", function()
+  local function broken()
+    return wow.module("broken", { events = { SOME_EVENT = function() error("boom") end } })
+  end
+
+  it("are caught, counted and reported once, without stopping other modules", function()
+    local other = wow.module("other")
+    local w = wow.load({ modules = { broken(), other } })
+    w:Fire("SOME_EVENT")
+    w:Fire("SOME_EVENT")
+    assert.equal(1, #w.ns.errors)
+    assert.equal(2, w.ns.errors[1].count)
+    assert.matches("^broken SOME_EVENT: .*boom", w.ns.errors[1].text)
+    assert.same({ "SOME_EVENT" }, other.calls[#other.calls])
+    local notices = 0
+    for _, line in ipairs(w.printed) do
+      if line:find("/fu errors", 1, true) then notices = notices + 1 end
+    end
+    assert.equal(1, notices)
+  end)
+
+  it("are listed by /fu errors", function()
+    local w = wow.load({ modules = { broken() } })
+    w:Slash("errors")
+    assert.matches("no errors caught", w.printed[#w.printed])
+    w:Fire("SOME_EVENT")
+    w:Slash("errors")
+    assert.matches("1x broken SOME_EVENT: .*boom", w.printed[#w.printed])
+  end)
+
+  it("passes results through when nothing goes wrong", function()
+    local w = wow.load()
+    assert.equal(3, w.ns.Safe("adding", function(a, b) return a + b end, 1, 2))
+    assert.is_nil(w.ns.Safe("failing", function() error("no") end))
+  end)
+end)

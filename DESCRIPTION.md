@@ -12,7 +12,8 @@ Looking for a particular mob? Pick it from a list and ForeverUtils writes the ta
 - **Search instead of typing exact names.** Type part of a name and pick from the matches. With Questie's database (QuestieDB) installed, the search covers every mob it knows.
 - **Your quests, ready to pick from.** Open **Quests** in the window to see your unfinished quests with their mobs, including the mobs that drop items you need to collect. Click one to find it. Shift-click a quest to find all its mobs at once.
 - **Set it from the mob in front of you.** Target a mob and click **Find** on the target frame, pick **Find this mob** from its right-click menu, or hover a mob and press a key you've bound.
-- **Several mobs at once.** Add more than one mob and the macro tries each in turn until it finds one. To go for a particular one, click the magnifying glass beside it in the window.
+- **Several mobs at once.** Add more than one mob and the macro tries each in turn until it finds one. Use the arrows in the window to change the order, or click the magnifying glass beside a mob to go for that one.
+- **History.** The window keeps the last ten mobs you looked for, so one you removed by accident is a click away.
 - **Skips corpses.** Dead mobs are ignored unless you tick **Include dead mobs**.
 - **A button if you'd rather click.** A small floating button targets with a click, opens the list with a right-click and finds a service with a shift-click. It can hide while you have nothing to find, or be turned off.
 - **Tooltip reminder.** Hovering a mob on your find list says so, and whether it's the only one you're finding.
@@ -42,6 +43,7 @@ Looking for a particular mob? Pick it from a list and ForeverUtils writes the ta
 | `/fu on` or `/fu off` | Turns every module on or off |
 | `/fu finder on` or `/fu finder off` | Turns Target Finder on or off |
 | `/fu status` | Shows which modules are on |
+| `/fu errors` | Shows any errors ForeverUtils caught and skipped |
 
 ## Options
 
@@ -72,7 +74,7 @@ Under Key Bindings → AddOns → ForeverUtils:
 ## Good to know
 
 - **You still press a button to target.** WoW doesn't let addons target for you, so ForeverUtils maintains the macro and you press it.
-- **Three or four mobs fit.** A macro holds 255 characters. Mobs that don't fit stay on your list, greyed out.
+- **About three mobs fit.** A macro holds 255 characters. Mobs that don't fit stay on your list, greyed out.
 - **Changes wait for combat to end.** Macros can't be edited in combat, so a change made mid-fight applies when it's over.
 - **Pressing the macro clears your target first.** If none of your mobs are nearby, you end up with no target.
 - **The minimap shows spawn points, not the mob itself.** WoW doesn't tell addons where a mob is, so the markers show where it's known to spawn.

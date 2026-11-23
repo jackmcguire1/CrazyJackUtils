@@ -7,7 +7,7 @@ local MAX_TARGETS = 5
 local LIST_ROWS = 10
 local SEARCH_LIMIT = 40
 local ROW_HEIGHT = 20
-local WIDTH = 260
+local WIDTH = 280
 
 local MARKERS = {
   { key = 0, name = "No marker" },
@@ -60,7 +60,26 @@ for i = 1, MAX_TARGETS do
   row:SetPoint("TOPLEFT", 16, -94 - (i - 1) * ROW_HEIGHT)
   row.text = Label(row, "")
   row.text:SetPoint("LEFT")
-  row.text:SetPoint("RIGHT", -46, 0) -- room for the magnifying glass and the remove button
+  row.text:SetPoint("RIGHT", -80, 0) -- room for the arrows, the magnifying glass and the remove button
+  row.text:SetWordWrap(false)
+  -- Up and down: where the mob comes in the order the macro tries them.
+  row.arrows = {}
+  for index, arrow in ipairs({ { "Up", -1, -62 }, { "Down", 1, -46 } }) do
+    local move = CreateFrame("Button", nil, row)
+    move:SetSize(16, 16)
+    move:SetPoint("RIGHT", arrow[3], 0)
+    move:SetNormalTexture("Interface\\Buttons\\Arrow-" .. arrow[1] .. "-Up")
+    move:SetPushedTexture("Interface\\Buttons\\Arrow-" .. arrow[1] .. "-Down")
+    move:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+    move:SetScript("OnClick", function() module:Move(row.name, arrow[2]) end)
+    move:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine(arrow[2] < 0 and "Try this mob sooner" or "Try this mob later")
+      GameTooltip:Show()
+    end)
+    move:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    row.arrows[index] = move
+  end
   local remove = CreateFrame("Button", nil, row, "UIPanelCloseButton")
   remove:SetSize(22, 22)
   remove:SetPoint("RIGHT")
@@ -308,7 +327,12 @@ local function RefreshWindow()
     local name = db.targets[i]
     row.name = name
     row:SetShown(name ~= nil)
-    if name then row.text:SetText(i > used and "|cff888888" .. name .. "|r" or name) end
+    if name then
+      row.text:SetText(i > used and "|cff888888" .. name .. "|r" or name)
+      -- Dimmed where there's nowhere to move to.
+      row.arrows[1]:SetAlpha(i > 1 and 1 or 0.25)
+      row.arrows[2]:SetAlpha(i < #db.targets and 1 or 0.25)
+    end
   end
   emptyNote:SetShown(#db.targets == 0)
   overflowNote:SetText(used < #db.targets
@@ -526,11 +550,13 @@ end
 
 if Menu and Menu.ModifyMenu then
   Menu.ModifyMenu("MENU_UNIT_TARGET", function(_, root)
-    if not (module.active and module.db.targetMenu and module:CanFind("target")) then return end
-    root:CreateDivider()
-    root:CreateTitle("ForeverUtils")
-    root:CreateButton("Find this mob", function() module:UseUnit("target") end)
-    root:CreateButton("Add to find list", function() module:UseUnit("target", true) end)
+    ns.Safe("finder target menu", function()
+      if not (module.active and module.db.targetMenu and module:CanFind("target")) then return end
+      root:CreateDivider()
+      root:CreateTitle("ForeverUtils")
+      root:CreateButton("Find this mob", function() module:UseUnit("target") end)
+      root:CreateButton("Add to find list", function() module:UseUnit("target", true) end)
+    end)
   end)
 end
 
@@ -539,10 +565,16 @@ end
 -- so it sits alongside whatever other addons add.
 ---------------------------------------------------------------------------
 
-local function OnUnitTooltip(tooltip)
+local function AddTooltipLine(tooltip)
   if tooltip ~= GameTooltip or not module.active or not module.db.tooltip then return end
   local text = module:TooltipText(UnitName("mouseover"))
   if text then tooltip:AddLine(text, 0.2, 0.8, 1) end
+end
+
+-- Other addons share this hook, and in instances the game withholds unit names. Whatever
+-- goes wrong here is skipped, never raised into the tooltip.
+local function OnUnitTooltip(tooltip)
+  ns.Safe("finder tooltip", AddTooltipLine, tooltip)
 end
 
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
@@ -568,9 +600,9 @@ pinFrame:Hide()
 local pins = {}
 
 local function UpdatePins()
-  local view = C_Minimap and C_Minimap.GetViewRadius and C_Minimap.GetViewRadius()
+  local view = ns.Plain(C_Minimap and C_Minimap.GetViewRadius and C_Minimap.GetViewRadius())
   if type(view) ~= "number" or view <= 0 then view = ZOOM_YARDS[Minimap:GetZoom()] or ZOOM_YARDS[0] end
-  local facing = GetCVar("rotateMinimap") == "1" and GetPlayerFacing() or nil
+  local facing = GetCVar("rotateMinimap") == "1" and ns.Plain(GetPlayerFacing()) or nil
   if type(facing) ~= "number" then facing = nil end
   local radius = Minimap:GetWidth() / 2 - 4
   local marker = module.db.marker
@@ -599,7 +631,7 @@ pinFrame:SetScript("OnUpdate", function(_, elapsed)
   sinceUpdate = sinceUpdate + elapsed
   if sinceUpdate < PIN_INTERVAL then return end
   sinceUpdate = 0
-  UpdatePins()
+  ns.Safe("finder minimap pins", UpdatePins)
 end)
 
 function module.InitUI()
@@ -610,7 +642,7 @@ function module.InitUI()
   end
 end
 
-function module.UpdateUI()
+local function UpdateUI()
   local db = module.db
   local targets = db.targets
   if targets[1] then
@@ -626,6 +658,11 @@ function module.UpdateUI()
   pinFrame:SetShown(module.active and db.minimapPins and #targets > 0)
   if not module.active then window:Hide() end
   if window:IsShown() then RefreshWindow() end
+end
+
+-- Called from events, including in combat and in instances: an error is noted, not raised.
+function module.UpdateUI()
+  ns.Safe("finder window", UpdateUI)
 end
 
 function module:BuildOptions(UI, anchor)

@@ -11,6 +11,7 @@ A WoW: Forever addon that collects small utilities in one place. Each utility is
 - Open the options with `/fu` (or `/foreverutils`), or go to Options → AddOns → ForeverUtils.
 - `/fu on|off` turns everything on or off. `/fu <module>` toggles one module, and `/fu <module> on|off` sets it.
 - `/fu status` lists the modules. `/fu debug` prints what the addon is doing.
+- `/fu errors` lists any errors ForeverUtils caught and skipped this session. Errors in a module's event handlers are caught so one bad value can't raise an error on every event; the first one prints a line in chat.
 
 ## Target Finder
 
@@ -24,12 +25,15 @@ With Black Ooze and Green Ooze on the list, the macro is:
 /cleartarget [dead]
 /targetexact [noexists] Green Ooze
 /cleartarget [dead]
+/tm [exists,nodead] 0
 /tm [exists,nodead] 1
 ```
 
+The marker is cleared before it's set because setting a marker a mob already has takes it off, which is what pressing the macro twice on the same mob would otherwise do.
+
 - **Picking mobs**
   - `/tf` opens the window. Type a name and press Enter, or click a suggestion. Shift-click, or Shift+Enter, adds to the list instead of replacing it.
-  - With nothing typed, the window lists four sections, closed to start with: "Quests", "Recently seen mobs", "Nearest services" and "Nearest profession trainers". Opening "Quests" shows every unfinished quest with its mobs under it; each quest can be closed on its own. Click a section to open or close it (it stays that way), click a mob in it to find that mob, or shift-click a quest to find all its mobs. The list scrolls with the mouse wheel.
+  - With nothing typed, the window lists five sections, closed to start with: "Quests", "History" (the last ten mobs you put on the find list, newest first), "Recently seen mobs", "Nearest services" and "Nearest profession trainers". Opening "Quests" shows every unfinished quest with its mobs under it; each quest can be closed on its own. Click a section to open or close it (it stays that way), click a mob in it to find that mob, or shift-click a quest to find all its mobs. The list scrolls with the mouse wheel.
   - Quest mobs come from QuestieDB when it's installed: the mobs to kill, and for "collect" objectives the mobs that drop the item. Without it they're read from unfinished kill objectives' text (English clients only).
   - Recently seen mobs are ones you've hovered, targeted or seen a nameplate for.
   - With the [QuestieDB](https://github.com/Questie/QuestieDB) addon installed (Questie uses it), typing also searches every NPC it knows. ForeverUtils reads the names through QuestieDB's public API (`NpcDB.GetAllIds` and `NpcDB.name`) the first time the window opens; nothing is bundled. Without it, only quest mobs and mobs you've seen are suggested.
@@ -49,6 +53,7 @@ With Black Ooze and Green Ooze on the list, the macro is:
 - **Targeting**
   - The floating button stays on screen; with nothing to find it reads "Target Finder" and a click opens the window. Untick **Keep the button when there's nothing to find** in the options to have it show only while the list isn't empty. Click it to target, right-click to open the window, Shift-click for the nearest-services menu, Shift-drag to move it.
   - In the window, the magnifying glass beside a mob on your list targets just that mob. It runs a second macro, `FUFindOne`, which is written for that mob as you click and created the first time you use a magnifying glass. `FUFind` is never touched by it. These are secure buttons laid over the window rather than part of it, so the window can still be opened and moved in combat; they're hidden while you're in combat.
+  - The macro tries mobs in list order. The up and down arrows beside a mob in the window move it.
   - **Pick up macro** in the window puts `FUFind` on your cursor to drop on an action bar.
   - "Target a mob on the find list" in the key bindings presses the floating button.
 - **Settings**
@@ -56,7 +61,8 @@ With Black Ooze and Green Ooze on the list, the macro is:
   - **Mark with** in the window picks the raid marker, or none. It's also in the options panel, along with whether the floating button shows and an **Open Target Finder** button.
   - **Show on mob tooltips** in the options panel adds a line when you hover a mob on your list: "the only mob you're finding", or "finding, 2 of 3 on your list". It only adds a line, so other addons' tooltip lines are unaffected.
 - **Limits**
-  - A macro holds 255 characters, which is three or four mobs. Ones that don't fit are greyed out in the window.
+  - A macro holds 255 characters, which is about three mobs. Ones that don't fit are greyed out in the window.
+  - In instances the game withholds some unit names ("secret" values). Those units are skipped: they aren't remembered as seen and can't be put on the list from the target frame.
   - Macros and the floating button can't change in combat. Changes made in combat apply when it ends.
   - Pressing the macro clears your target first, so if nothing is found you end up with no target.
 
@@ -112,6 +118,7 @@ How modules behave:
 
 - A module's settings live in `ForeverUtilsDB.modules[key]` and are available as `module.db` from `OnInit` onwards. `defaults` fills in missing settings. `enabled` is added automatically and defaults to `true`; put `enabled = false` in `defaults` for an opt-in module.
 - A module is active when both ForeverUtils and the module are enabled. `OnEnable` and `OnDisable` are called when that changes, and `events` handlers are only called while it's active.
+- Module event handlers are called through `ns.Safe(what, fn, ...)`, which catches an error and notes it for `/fu errors`. Use it for hooks and `OnUpdate` scripts too. `ns.Plain(value)` returns a value from the game, or nil if it's secret.
 - `ns.UI` has `Label`, `Checkbox`, `Button` and `Dropdown` for `BuildOptions`. Each is placed under the `anchor` it's given, except `Button`, which you place yourself. Each module's options sit in their own headed section of the panel, made with `ns.UI.Section`.
 
 ## Developing

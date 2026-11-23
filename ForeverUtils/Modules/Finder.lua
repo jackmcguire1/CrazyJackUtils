@@ -9,6 +9,7 @@ local MACRO_ICON = "INV_MISC_QUESTIONMARK" -- shows the icon of whatever the mac
 local MACRO_LIMIT = 255
 local EMPTY_MACRO = "/tf" -- with nothing to find, the macro opens the window instead
 local SEEN_LIMIT = 300
+local HISTORY_LIMIT = 10
 local DATABASE_BATCH = 500 -- names read per frame while loading QuestieDB's NPC list
 
 local module = ns.RegisterModule({
@@ -27,6 +28,7 @@ local module = ns.RegisterModule({
     targetMenu = true,   -- the entries in the target's right-click menu
     expanded = {},       -- [section key] = whether you left that section of the window open
     minimapPins = true,  -- show the mobs' known spawn points on the minimap
+    history = {},        -- the last few mobs put on the find list, newest first
   },
 })
 ns.finder = module
@@ -80,13 +82,15 @@ local SERVICES = {
 for _, service in ipairs(SERVICES) do service.profession = service.words ~= nil end
 module.SERVICES = SERVICES
 
+local Plain = ns.Plain -- a value from the game, or nil if it's one of the game's secrets
+
 local function IsSecret(value)
   return issecretvalue and issecretvalue(value)
 end
 
 -- A name safe to put in a macro: no macro syntax, tidy spacing. nil if nothing is left.
 local function Clean(name)
-  if type(name) ~= "string" or IsSecret(name) then return nil end
+  if IsSecret(name) or type(name) ~= "string" then return nil end
   name = name:gsub("[%[%];\r\n]", " "):gsub("%s+", " "):match("^ ?(.-) ?$")
   if name == "" then return nil end
   return name
@@ -96,11 +100,20 @@ end
 -- The macro
 ---------------------------------------------------------------------------
 
+-- The macro lines that mark the target, or nil with no marker chosen. Setting a marker a
+-- mob already has takes it off, which is what pressing the macro twice on the same mob
+-- would do, so the marker is cleared first and then set.
+function module:MarkLines()
+  local db = self.db
+  if db.marker <= 0 then return nil end
+  local condition = db.allowDead and "[exists]" or "[exists,nodead]"
+  return ("/tm %s 0\n/tm %s %d"):format(condition, condition, db.marker)
+end
+
 -- The macro body, and how many of the targets fit in it.
 function module:MacroText()
   local db = self.db
-  local mark = db.marker > 0
-    and ("/tm [exists%s] %d"):format(db.allowDead and "" or ",nodead", db.marker) or nil
+  local mark = self:MarkLines()
   -- Clearing first means a miss leaves you with no target, not the old one marked.
   local lines, used = { "/cleartarget" }, 0
   for i, name in ipairs(db.targets) do
@@ -121,9 +134,8 @@ function module:MacroTextFor(name)
   local db = self.db
   local lines = { "/cleartarget", "/targetexact " .. name }
   if not db.allowDead then table.insert(lines, "/cleartarget [dead]") end
-  if db.marker > 0 then
-    table.insert(lines, ("/tm [exists%s] %d"):format(db.allowDead and "" or ",nodead", db.marker))
-  end
+  local mark = self:MarkLines()
+  if mark then table.insert(lines, mark) end
   return table.concat(lines, "\n")
 end
 
@@ -187,6 +199,15 @@ local function IndexOf(list, name)
   end
 end
 
+-- Notes that `name` went on the find list, for the window's History section.
+local function Remember(self, name)
+  local history = self.db.history
+  local at = IndexOf(history, name)
+  if at then table.remove(history, at) end
+  table.insert(history, 1, name)
+  for i = #history, HISTORY_LIMIT + 1, -1 do history[i] = nil end
+end
+
 function module:SetTargets(names)
   local targets = {}
   for _, name in ipairs(names) do
@@ -194,14 +215,29 @@ function module:SetTargets(names)
     if name and not IndexOf(targets, name) then table.insert(targets, self:KnownName(name)) end
   end
   self.db.targets = targets
+  for i = #targets, 1, -1 do Remember(self, targets[i]) end -- so the first ends up newest
   Changed(self)
 end
 
 function module:Add(name)
   name = Clean(name)
   if not name or IndexOf(self.db.targets, name) then return end
-  table.insert(self.db.targets, self:KnownName(name))
+  name = self:KnownName(name)
+  table.insert(self.db.targets, name)
+  Remember(self, name)
   Changed(self)
+end
+
+-- Moves `name` up the list (direction -1), so the macro tries it sooner, or down (1).
+-- Returns false if it isn't on the list or is already at that end.
+function module:Move(name, direction)
+  local targets = self.db.targets
+  local from = Clean(name) and IndexOf(targets, Clean(name))
+  if not from or not targets[from + direction] then return false end
+  local to = from + direction
+  targets[from], targets[to] = targets[to], targets[from]
+  Changed(self)
+  return true
 end
 
 function module:Remove(name)
@@ -226,7 +262,7 @@ end
 
 -- Whether `unit` is something to offer finding: it exists, has a name and isn't a player.
 function module:CanFind(unit)
-  if not UnitExists(unit) or not Clean(UnitName(unit)) then return false end
+  if not Plain(UnitExists(unit)) or not Clean(UnitName(unit)) then return false end
   local isPlayer = UnitIsPlayer(unit)
   return not IsSecret(isPlayer) and not isPlayer
 end
@@ -234,7 +270,7 @@ end
 -- Finds `unit` by name: instead of the current list, or with `add` as well as it.
 -- Returns false if there's no such unit.
 function module:UseUnit(unit, add)
-  local name = UnitExists(unit) and Clean(UnitName(unit))
+  local name = Plain(UnitExists(unit)) and Clean(UnitName(unit))
   if not name then return false end
   if add then self:Add(name) else self:SetTargets({ name }) end
   ns.Print("finding %s", table.concat(self.db.targets, ", "))
@@ -290,9 +326,8 @@ end
 local function TextMobs(objectives)
   local mobs = {}
   for _, objective in ipairs(objectives) do
-    local text = objective.text
-    if objective.type == "monster" and not objective.finished and type(text) == "string"
-      and not IsSecret(text) then
+    local text = Plain(objective.text)
+    if Plain(objective.type) == "monster" and not Plain(objective.finished) and type(text) == "string" then
       local name = ObjectiveName(text)
       if name then table.insert(mobs, { name = name }) end
     end
@@ -309,13 +344,14 @@ local function QuestGroups()
   if not (log and log.GetNumQuestLogEntries and log.GetInfo and log.GetQuestObjectives) then return questGroups end
   for i = 1, log.GetNumQuestLogEntries() do
     local info = log.GetInfo(i)
-    if info and not info.isHeader and info.questID then
-      local objectives = log.GetQuestObjectives(info.questID) or {}
+    local questID = info and not Plain(info.isHeader) and Plain(info.questID)
+    if info and questID then
+      local objectives = log.GetQuestObjectives(questID) or {}
       local unfinished = #objectives == 0
       for _, objective in ipairs(objectives) do
-        if not objective.finished then unfinished = true end
+        if not Plain(objective.finished) then unfinished = true end
       end
-      local found = unfinished and DatabaseMobs(info.questID) or {}
+      local found = unfinished and DatabaseMobs(questID) or {}
       if unfinished and #found == 0 then found = TextMobs(objectives) end
       local mobs, have = {}, {}
       for _, mob in ipairs(found) do
@@ -327,8 +363,9 @@ local function QuestGroups()
       end
       table.sort(mobs, function(a, b) return a.name < b.name end)
       if #mobs > 0 then
-        local title = type(info.title) == "string" and not IsSecret(info.title) and info.title or "Quest"
-        table.insert(questGroups, { key = "quest" .. info.questID, title = title, mobs = mobs })
+        local title = Plain(info.title)
+        title = type(title) == "string" and title or "Quest"
+        table.insert(questGroups, { key = "quest" .. questID, title = title, mobs = mobs })
       end
     end
   end
@@ -425,7 +462,8 @@ end
 function module:PlayerPosition()
   if not UnitPosition then return nil end
   local n, w, _, continent = UnitPosition("player")
-  if IsSecret(n) or IsSecret(w) or type(n) ~= "number" or type(w) ~= "number" then return nil end
+  n, w, continent = Plain(n), Plain(w), Plain(continent)
+  if type(n) ~= "number" or type(w) ~= "number" or continent == nil then return nil end
   return n, w, continent
 end
 
@@ -680,8 +718,9 @@ end
 -- What the window lists under the search box, as rows to draw:
 --   { kind = "header", key = ..., title = ..., names = { every mob in it }, open = bool }
 --   { kind = "mob", name = ..., note = ..., listed = already on the find list }
--- With something typed that's the search results. With nothing typed it's four sections,
--- closed to start with: Quests, mobs seen recently and, with QuestieDB, the nearest
+-- With something typed that's the search results. With nothing typed it's five sections,
+-- closed to start with: Quests, History (the last mobs you put on the find list), mobs
+-- seen recently and, with QuestieDB, the nearest
 -- services and profession trainers. Quests holds a section per quest, each open to start
 -- with, so opening Quests shows every quest and its mobs. Rows inside Quests have
 -- level = 1, to be drawn indented. `expanded` holds the sections you've opened or closed. A service's row also has
@@ -717,6 +756,9 @@ function module:Browse(query, expanded, limit)
   if #quests > 0 and header("quests", "Quests", {}, #quests, false) then
     for _, group in ipairs(quests) do section(group.key, group.title, group.mobs, true, 1) end
   end
+  local history = {}
+  for i, name in ipairs(self.db.history) do history[i] = { name = name } end
+  if #history > 0 then section("history", "History", history, false) end
   local seen = {}
   for i, name in ipairs(SeenNames(self.db.seen)) do
     if i > SEEN_SHOWN then break end
@@ -752,12 +794,15 @@ function module:KnownName(name)
   for known in pairs(self.db.seen) do
     if known:lower() == lower then return known end
   end
+  for _, known in ipairs(self.db.history) do
+    if known:lower() == lower then return known end
+  end
   return databaseNames[lower] or name
 end
 
 local function See(self, unit)
-  local name = UnitName(unit)
-  if type(name) ~= "string" or name == "" or IsSecret(name) then return end
+  local name = Plain(UnitName(unit)) -- secret in instances: comparing it would be an error
+  if type(name) ~= "string" or name == "" then return end
   local isPlayer, isControlled = UnitIsPlayer(unit), UnitPlayerControlled(unit)
   if IsSecret(isPlayer) or IsSecret(isControlled) or isPlayer or isControlled then return end
   self.db.seen[name] = time()
