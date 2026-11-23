@@ -201,6 +201,28 @@ for i = 1, LIST_ROWS do
       search:ClearFocus()
     end
   end)
+  -- Says what a click and a shift-click do, since one replaces the list and the other adds.
+  function row.ShowTip()
+    local entry = row.entry
+    if not entry then return end
+    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    if entry.kind == "header" then
+      GameTooltip:AddLine(entry.title)
+      GameTooltip:AddLine("Click: " .. (entry.open and "close" or "open"), 1, 1, 1)
+      if #entry.names > 0 then
+        GameTooltip:AddLine("Shift-click: find all of its mobs, replacing your list", 1, 1, 1)
+      end
+    else
+      GameTooltip:AddLine(entry.label or entry.name)
+      if entry.listed then GameTooltip:AddLine("Already on your find list.", 0.6, 0.6, 0.6) end
+      GameTooltip:AddLine(entry.service and "Click: find the nearest one, replacing your list"
+        or "Click: find only this mob, replacing your list", 1, 1, 1)
+      GameTooltip:AddLine("Shift-click: add it to your list", 1, 1, 1)
+    end
+    GameTooltip:Show()
+  end
+  row:SetScript("OnEnter", row.ShowTip)
+  row:SetScript("OnLeave", function() GameTooltip:Hide() end)
   listRows[i] = row
 end
 
@@ -232,6 +254,10 @@ function RefreshList()
         row.text:SetText(entry.listed and "|cff888888" .. text .. "|r" or text)
         row.note:SetText(entry.listed and "finding" or entry.note or "")
       end
+    end
+    -- The row under the cursor may now hold something else (scrolled, opened, clicked).
+    if GameTooltip:IsOwned(row) then
+      if entry then row.ShowTip() else GameTooltip:Hide() end
     end
   end
   local below = #entries - offset - LIST_ROWS
