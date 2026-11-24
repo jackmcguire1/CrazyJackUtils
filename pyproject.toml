@@ -1,7 +1,7 @@
 [project]
-name = "foreverutils-tools"
+name = "crazyjackutils-tools"
 version = "0.1.0"
-description = "Build tooling for the ForeverUtils WoW addon"
+description = "Build tooling for the CrazyJackUtils WoW addon"
 requires-python = ">=3.15"
 dependencies = []
 

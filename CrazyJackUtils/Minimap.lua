@@ -31,7 +31,7 @@ end
 
 local function OnEnter(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-  GameTooltip:AddLine("ForeverUtils")
+  GameTooltip:AddLine("CrazyJackUtils")
   GameTooltip:AddLine(ns.db.enabled and "|cff00ff00On|r" or "|cffff4040Off|r")
   GameTooltip:AddLine("Left-click: options", 1, 1, 1)
   GameTooltip:AddLine("Right-click: turn on or off", 1, 1, 1)
@@ -44,7 +44,7 @@ function ns.UpdateMinimapButton()
 end
 
 function ns.InitMinimap()
-  button = CreateFrame("Button", "ForeverUtils_MinimapButton", Minimap)
+  button = CreateFrame("Button", "CrazyJackUtils_MinimapButton", Minimap)
   button:SetSize(31, 31)
   button:SetFrameStrata("MEDIUM")
   button:SetFrameLevel(8)
@@ -82,6 +82,6 @@ function ns.InitMinimap()
 end
 
 -- Entry in the minimap's addon compartment dropdown (## AddonCompartmentFunc in the TOC).
-function ForeverUtils_OnAddonCompartmentClick(_, mouseButton)
+function CrazyJackUtils_OnAddonCompartmentClick(_, mouseButton)
   OnClick(nil, mouseButton)
 end

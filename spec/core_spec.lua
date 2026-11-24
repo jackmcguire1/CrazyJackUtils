@@ -53,7 +53,7 @@ describe("modules", function()
     assert.same({ "OnInit" }, calls(m))
   end)
 
-  it("stay off while ForeverUtils is off", function()
+  it("stay off while CrazyJackUtils is off", function()
     local m = wow.module("thing")
     local w = wow.load({ modules = { m }, db = { enabled = false } })
     assert.same({ "OnInit" }, calls(m))

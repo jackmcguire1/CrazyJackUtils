@@ -31,11 +31,11 @@ jobs:
       - name: Download zip
         uses: actions/download-artifact@v8
         with:
-          name: ForeverUtils
+          name: CrazyJackUtils
 
       - name: Get Version
         run: |
-          version=$(sed -n 's/^## Version: *//p' ForeverUtils/ForeverUtils.toc | tr -d '\r')
+          version=$(sed -n 's/^## Version: *//p' CrazyJackUtils/CrazyJackUtils.toc | tr -d '\r')
           echo "ADDON_VERSION=v$version" >> "$GITHUB_ENV"
 
       - name: Draft release
@@ -55,8 +55,8 @@ jobs:
             gh release delete "$TAG" --yes
           fi
 
-          mv ForeverUtils.zip "ForeverUtils-$TAG.zip"
-          gh release create "$TAG" "ForeverUtils-$TAG.zip" \
+          mv CrazyJackUtils.zip "CrazyJackUtils-$TAG.zip"
+          gh release create "$TAG" "CrazyJackUtils-$TAG.zip" \
             --draft \
             --prerelease \
             --target "$GITHUB_SHA" \

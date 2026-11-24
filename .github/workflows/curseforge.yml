@@ -33,7 +33,7 @@ jobs:
           CF_PROJECT_ID: ${{ vars.CF_PROJECT_ID }}
         run: |
           set -euo pipefail
-          toc=ForeverUtils/ForeverUtils.toc
+          toc=CrazyJackUtils/CrazyJackUtils.toc
 
           if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_PROJECT_ID" ]; then
             echo "::notice::CF_API_TOKEN secret or CF_PROJECT_ID variable not set, skipping upload"
@@ -51,7 +51,7 @@ jobs:
             exit 1
           fi
 
-          zip="ForeverUtils-$TAG.zip"
+          zip="CrazyJackUtils-$TAG.zip"
           gh release download "$TAG" --pattern "$zip"
           release_type=$(gh release view "$TAG" --json isPrerelease --jq 'if .isPrerelease then "beta" else "release" end')
 

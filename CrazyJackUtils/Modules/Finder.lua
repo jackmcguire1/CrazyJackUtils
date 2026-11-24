@@ -951,18 +951,18 @@ function module:OnDisable()
 end
 
 -- Key binding (Bindings.xml): find the mob under the cursor.
-function ForeverUtils_FindHover()
+function CrazyJackUtils_FindHover()
   if module.active then module:FindUnit() end
 end
 
-BINDING_HEADER_FOREVERUTILS = "ForeverUtils"
-BINDING_NAME_FOREVERUTILS_FIND_HOVER = "Find the mob under the cursor"
-_G["BINDING_NAME_CLICK ForeverUtilsFinderButton:LeftButton"] = "Target a mob on the find list"
+BINDING_HEADER_CRAZYJACKUTILS = "CrazyJackUtils"
+BINDING_NAME_CRAZYJACKUTILS_FIND_HOVER = "Find the mob under the cursor"
+_G["BINDING_NAME_CLICK CrazyJackUtilsFinderButton:LeftButton"] = "Target a mob on the find list"
 
-SLASH_FOREVERUTILSFINDER1 = "/tf"
-SLASH_FOREVERUTILSFINDER2 = "/tfind"
+SLASH_CRAZYJACKUTILSFINDER1 = "/tf"
+SLASH_CRAZYJACKUTILSFINDER2 = "/tfind"
 
-SlashCmdList.FOREVERUTILSFINDER = function(input)
+SlashCmdList.CRAZYJACKUTILSFINDER = function(input)
   if not module.active then
     ns.Print("Target Finder is off - turn it on with /fu finder on")
     return

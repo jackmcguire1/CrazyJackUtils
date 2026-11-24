@@ -6,7 +6,7 @@ doesn't exist, so the check fails on either mismatch.
 
 Usage:
   uv run tools/build.py                       # check only
-  uv run tools/build.py --zip                 # also write dist/ForeverUtils.zip to share
+  uv run tools/build.py --zip                 # also write dist/CrazyJackUtils.zip to share
   uv run tools/build.py --install "<WoW>/_forever_/Interface/AddOns"
 """
 import argparse
@@ -16,7 +16,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NAME = "ForeverUtils"
+NAME = "CrazyJackUtils"
 ADDON = ROOT / NAME
 TOC = ADDON / f"{NAME}.toc"
 SKIP_FILES = {".gitkeep", ".DS_Store"}

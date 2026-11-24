@@ -9,7 +9,7 @@ description = "Check the TOC lists every Lua file in the addon"
 run = "uv run tools/build.py"
 
 [tasks.zip]
-description = "Check the addon and write dist/ForeverUtils.zip to share"
+description = "Check the addon and write dist/CrazyJackUtils.zip to share"
 run = "uv run tools/build.py --zip"
 
 [tasks.install]

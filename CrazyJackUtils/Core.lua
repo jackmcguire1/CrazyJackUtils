@@ -18,7 +18,7 @@ local db
 local frame = CreateFrame("Frame")
 
 local function Print(fmt, ...)
-  print("|cff33ccffForeverUtils|r: " .. fmt:format(...))
+  print("|cff33ccffCrazyJackUtils|r: " .. fmt:format(...))
 end
 ns.Print = Print
 
@@ -137,8 +137,8 @@ frame:RegisterEvent("ADDON_LOADED")
 frame:SetScript("OnEvent", function(_, event, ...)
   if not db then
     if event ~= "ADDON_LOADED" or ... ~= ADDON then return end
-    ForeverUtilsDB = ForeverUtilsDB or {}
-    db = ForeverUtilsDB
+    CrazyJackUtilsDB = CrazyJackUtilsDB or {}
+    db = CrazyJackUtilsDB
     FillDefaults(db, ns.DEFAULTS)
     ns.db = db
     for _, module in ipairs(ns.modules) do InitModule(module) end
@@ -153,10 +153,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
   end
 end)
 
-SLASH_FOREVERUTILS1 = "/foreverutils"
-SLASH_FOREVERUTILS2 = "/fu"
+-- /fu is from the addon's old name, ForeverUtils, and stays because it's short.
+SLASH_CRAZYJACKUTILS1 = "/crazyjackutils"
+SLASH_CRAZYJACKUTILS2 = "/fu"
+SLASH_CRAZYJACKUTILS3 = "/cju"
 
-SlashCmdList.FOREVERUTILS = function(input)
+SlashCmdList.CRAZYJACKUTILS = function(input)
   local cmd, arg = (input or ""):lower():match("^%s*(%S*)%s*(.-)%s*$")
   local module = byKey[cmd]
   if cmd == "" and ns.OpenOptions then

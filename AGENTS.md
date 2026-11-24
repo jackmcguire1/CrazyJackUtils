@@ -1,6 +1,6 @@
-# Working on ForeverUtils
+# Working on CrazyJackUtils
 
-ForeverUtils is a World of Warcraft addon for the WoW: Forever client (Interface 16001). It is a hub of small utilities, each one a module. `README.md` describes the features, layout, module API, tooling and release process in full; read it first. This file covers what an agent needs on top of that.
+CrazyJackUtils is a World of Warcraft addon for the WoW: Forever client (Interface 16001). It is a hub of small utilities, each one a module. `README.md` describes the features, layout, module API, tooling and release process in full; read it first. This file covers what an agent needs on top of that.
 
 ## Commands
 
@@ -37,7 +37,7 @@ There is no WoW client on the development machine. The tests run against a fake 
 
 - Lua 5.1, two-space indent, comments that say why.
 - A new WoW global goes in `.luacheckrc`. If lua-language-server doesn't know it either, add it to `diagnostics.globals` in `.luarc.json`.
-- A new module file goes in `ForeverUtils.toc` between `Core.lua` and `Options.lua`.
+- A new module file goes in `CrazyJackUtils.toc` between `Core.lua` and `Options.lua`.
 - A new setting gets a default in the module's `defaults` and, if the player should control it, a widget in `BuildOptions`.
 
 ## With every player-facing change
@@ -45,7 +45,7 @@ There is no WoW client on the development machine. The tests run against a fake 
 - `README.md`: the feature's section.
 - `DESCRIPTION.md`: the CurseForge project page text, written for players. It is pasted into CurseForge by hand.
 - `CHANGELOG.md`: holds only the notes for the version being released, and becomes the release notes.
-- `## Version` in `ForeverUtils.toc`: calendar style, `<year>.<ISO week>.<release that week>`. Bump it if the current version has already been published.
+- `## Version` in `CrazyJackUtils.toc`: calendar style, `<year>.<ISO week>.<release that week>`. Bump it if the current version has already been published.
 
 ## Releasing
 

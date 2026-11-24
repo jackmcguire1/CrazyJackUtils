@@ -1,7 +1,0 @@
-<Bindings>
-  <!-- Names shown in the key bindings menu are set in Modules/Finder.lua. -->
-  <Binding name="FOREVERUTILS_FIND_HOVER" header="FOREVERUTILS" category="ADDONS">
-    ForeverUtils_FindHover()
-  </Binding>
-  <Binding name="CLICK ForeverUtilsFinderButton:LeftButton" category="ADDONS"/>
-</Bindings>

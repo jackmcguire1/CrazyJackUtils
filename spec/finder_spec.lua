@@ -105,13 +105,13 @@ local function load(opts)
     },
   }
   local w = wow.load({
-    files = { "ForeverUtils/Modules/Finder.lua" },
+    files = { "CrazyJackUtils/Modules/Finder.lua" },
     env = env,
     db = opts.finder and { modules = { finder = opts.finder } } or opts.db,
   })
   w.game = game
   w.finder = w.ns.finder
-  function w:Tf(input) self.env.SlashCmdList.FOREVERUTILSFINDER(input) end
+  function w:Tf(input) self.env.SlashCmdList.CRAZYJACKUTILSFINDER(input) end
   function w:Macro() return game.macros[1] and game.macros[1].body end
   -- Runs timers until none are left, returning how many ran.
   function w:RunTimers()
@@ -354,7 +354,7 @@ describe("the find list", function()
     w:Tf("hover")
     assert.same({ "Green Ooze" }, w.finder.db.targets)
     w.game.units.mouseover = { name = "Black Ooze" }
-    w.env.ForeverUtils_FindHover()
+    w.env.CrazyJackUtils_FindHover()
     assert.same({ "Black Ooze" }, w.finder.db.targets)
   end)
 
@@ -394,7 +394,7 @@ describe("the find list", function()
     local w = load({ finder = { enabled = false } })
     w:Tf("Black Ooze")
     w.game.units.mouseover = { name = "Black Ooze" }
-    w.env.ForeverUtils_FindHover()
+    w.env.CrazyJackUtils_FindHover()
     assert.same({}, w.finder.db.targets)
     assert.matches("Target Finder is off", w.printed[1], 1, true)
   end)

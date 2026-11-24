@@ -1,7 +1,7 @@
 local _, ns = ...
 
 local panel = CreateFrame("Frame")
-panel.name = "ForeverUtils"
+panel.name = "CrazyJackUtils"
 local refreshers = {}
 
 -- Extra space a widget needs below it (a checkbox's note, a dropdown taller than its label).
@@ -100,11 +100,11 @@ function UI.Section(text, anchor)
 end
 
 local function Build()
-  local title = UI.Label("ForeverUtils", "GameFontNormalLarge")
+  local title = UI.Label("CrazyJackUtils", "GameFontNormalLarge")
   title:SetPoint("TOPLEFT", 16, -16)
   local sub = UI.Label("A collection of small utilities, each with its own section below.", nil, title)
 
-  local enabled = UI.Checkbox("Enable ForeverUtils", "Turns every module off when unchecked.",
+  local enabled = UI.Checkbox("Enable CrazyJackUtils", "Turns every module off when unchecked.",
     ns.db, "enabled", sub, -12, { onChange = ns.Refresh })
   local minimap = UI.Checkbox("Show minimap button", nil, ns.db, "minimapHide", enabled, nil,
     { inverted = true, onChange = ns.UpdateMinimapButton })

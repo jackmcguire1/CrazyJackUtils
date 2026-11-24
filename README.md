@@ -1,21 +1,23 @@
-# ForeverUtils
+# CrazyJackUtils
 
 A WoW: Forever addon that collects small utilities in one place. Each utility is a **module** that can be turned on or off on its own.
 
+It was called ForeverUtils until v2026.48.5. The `/fu` command and the `FUFind` macro names date from then and were kept.
+
 ## In game
 
-- Click the minimap button to open the options, or right-click it to turn ForeverUtils on or off. Drag it to move it around the minimap.
-  - The button is named `ForeverUtils_MinimapButton`, so MinimapButtonButton collects it.
+- Click the minimap button to open the options, or right-click it to turn CrazyJackUtils on or off. Drag it to move it around the minimap.
+  - The button is named `CrazyJackUtils_MinimapButton`, so MinimapButtonButton collects it.
   - It also appears in the minimap's AddOns dropdown.
   - You can hide it in the options.
-- Open the options with `/fu` (or `/foreverutils`), or go to Options → AddOns → ForeverUtils.
+- Open the options with `/fu` (or `/cju`, `/crazyjackutils`), or go to Options → AddOns → CrazyJackUtils.
 - `/fu on|off` turns everything on or off. `/fu <module>` toggles one module, and `/fu <module> on|off` sets it.
 - `/fu status` lists the modules. `/fu debug` prints what the addon is doing.
-- `/fu errors` lists any errors ForeverUtils caught and skipped this session. Errors in a module's event handlers are caught so one bad value can't raise an error on every event; the first one prints a line in chat.
+- `/fu errors` lists any errors CrazyJackUtils caught and skipped this session. Errors in a module's event handlers are caught so one bad value can't raise an error on every event; the first one prints a line in chat.
 
 ## Target Finder
 
-Replaces a hand-edited targeting macro. You pick the mobs; ForeverUtils keeps a general macro called `FUFind` up to date, and that macro does the targeting. Addons can't target units themselves, so there is always a macro or button to press.
+Replaces a hand-edited targeting macro. You pick the mobs; CrazyJackUtils keeps a general macro called `FUFind` up to date, and that macro does the targeting. Addons can't target units themselves, so there is always a macro or button to press.
 
 With Black Ooze and Green Ooze on the list, the macro is:
 
@@ -36,10 +38,10 @@ The marker is cleared before it's set because setting a marker a mob already has
   - With nothing typed, the window lists five sections, closed to start with: "Quests", "History" (the last ten mobs you put on the find list, newest first), "Recently seen mobs", "Nearest services" and "Nearest profession trainers". Opening "Quests" shows every unfinished quest with its mobs under it; each quest can be closed on its own. Click a section to open or close it (it stays that way), click a mob in it to find that mob, or shift-click a quest to find all its mobs. The list scrolls with the mouse wheel. Hovering a row shows a tooltip saying what a click and a shift-click do.
   - Quest mobs come from QuestieDB when it's installed: the mobs to kill, and for "collect" objectives the mobs that drop the item. Without it they're read from unfinished kill objectives' text (English clients only).
   - Recently seen mobs are ones you've hovered, targeted or seen a nameplate for.
-  - With the [QuestieDB](https://github.com/Questie/QuestieDB) addon installed (Questie uses it), typing also searches every NPC it knows. ForeverUtils reads the names through QuestieDB's public API (`NpcDB.GetAllIds` and `NpcDB.name`) the first time the window opens; nothing is bundled. Without it, only quest mobs and mobs you've seen are suggested.
+  - With the [QuestieDB](https://github.com/Questie/QuestieDB) addon installed (Questie uses it), typing also searches every NPC it knows. CrazyJackUtils reads the names through QuestieDB's public API (`NpcDB.GetAllIds` and `NpcDB.name`) the first time the window opens; nothing is bundled. Without it, only quest mobs and mobs you've seen are suggested.
   - `/tf <name>` finds one mob, `/tf + <name>` adds one, `/tf - <name>` removes one, `/tf clear` empties the list and `/tf list` prints it.
   - With a mob targeted, click the **Find** button on the target frame (shift-click adds instead of replacing), or right-click the target's portrait and pick **Find this mob** or **Add to find list**. Both can be turned off in the options panel.
-  - `/tf hover` finds the mob under your cursor, or your target. It's also a key binding: Key Bindings → AddOns → ForeverUtils → "Find the mob under the cursor".
+  - `/tf hover` finds the mob under your cursor, or your target. It's also a key binding: Key Bindings → AddOns → CrazyJackUtils → "Find the mob under the cursor".
 - **Nearest services** (needs QuestieDB)
   - Shift-click the floating button for a menu: Vendor, Repair, Banker, Innkeeper, Flight master, Auctioneer, Stable master and Class trainer, with the profession trainers beside them. Picking one replaces the find list with the nearest NPC offering it, prints how far away it is and in which direction, and targets it if it's close enough to target.
   - The menu is a panel of secure buttons, since only those can target: each one rewrites `FUFind` as the click lands, then runs it. In combat that panel can't be shown, so one of the game's menus opens in its place, which finds the service without targeting it.
@@ -73,8 +75,8 @@ The logic is in `Modules/Finder.lua` and tested by `spec/finder_spec.lua`. The w
 ## Layout
 
 ```
-ForeverUtils/            the addon, as it's installed
-  ForeverUtils.toc
+CrazyJackUtils/            the addon, as it's installed
+  CrazyJackUtils.toc
   Core.lua               saved variables, module registry, slash command
   Modules/               one file per utility
   Bindings.xml           key bindings
@@ -87,7 +89,7 @@ AGENTS.md                notes for AI coding agents working on the repo
 
 ## Adding a module
 
-1. Create `ForeverUtils/Modules/<Name>.lua`:
+1. Create `CrazyJackUtils/Modules/<Name>.lua`:
 
    ```lua
    local _, ns = ...
@@ -112,14 +114,14 @@ AGENTS.md                notes for AI coding agents working on the repo
    end
    ```
 
-2. Add `Modules\<Name>.lua` to `ForeverUtils.toc`, between `Core.lua` and `Options.lua`. `mise run build` fails if you forget.
+2. Add `Modules\<Name>.lua` to `CrazyJackUtils.toc`, between `Core.lua` and `Options.lua`. `mise run build` fails if you forget.
 3. Add any new WoW globals it uses to `read_globals` in `.luacheckrc`.
-4. Test it in `spec/<name>_spec.lua` with `wow.load({ files = { "ForeverUtils/Modules/<Name>.lua" }, env = { ... } })`, passing stand-ins for the WoW API it calls in `env`.
+4. Test it in `spec/<name>_spec.lua` with `wow.load({ files = { "CrazyJackUtils/Modules/<Name>.lua" }, env = { ... } })`, passing stand-ins for the WoW API it calls in `env`.
 
 How modules behave:
 
-- A module's settings live in `ForeverUtilsDB.modules[key]` and are available as `module.db` from `OnInit` onwards. `defaults` fills in missing settings. `enabled` is added automatically and defaults to `true`; put `enabled = false` in `defaults` for an opt-in module.
-- A module is active when both ForeverUtils and the module are enabled. `OnEnable` and `OnDisable` are called when that changes, and `events` handlers are only called while it's active.
+- A module's settings live in `CrazyJackUtilsDB.modules[key]` and are available as `module.db` from `OnInit` onwards. `defaults` fills in missing settings. `enabled` is added automatically and defaults to `true`; put `enabled = false` in `defaults` for an opt-in module.
+- A module is active when both CrazyJackUtils and the module are enabled. `OnEnable` and `OnDisable` are called when that changes, and `events` handlers are only called while it's active.
 - Module event handlers are called through `ns.Safe(what, fn, ...)`, which catches an error and notes it for `/fu errors`. Use it for hooks and `OnUpdate` scripts too. `ns.Plain(value)` returns a value from the game, or nil if it's secret.
 - `ns.UI` has `Label`, `Checkbox`, `Button` and `Dropdown` for `BuildOptions`. Each is placed under the `anchor` it's given, except `Button`, which you place yourself. Each module's options sit in their own headed section of the panel, made with `ns.UI.Section`.
 
@@ -131,7 +133,7 @@ Tools are managed by [mise](https://mise.jdx.dev): `mise.toml` pins uv, Lua 5.1,
 mise install && mise run setup   # once: tools, luacheck, busted and the WoW API annotations
 mise run lint
 mise run test
-mise run zip                     # dist/ForeverUtils.zip
+mise run zip                     # dist/CrazyJackUtils.zip
 WOW_ADDONS="/path/to/World of Warcraft/_forever_/Interface/AddOns" mise run install
 ```
 
@@ -158,8 +160,8 @@ The options panel and minimap button aren't tested, since they're almost all WoW
 
 - **Shared checks (`checks.yml`):** the lint job runs `mise run lint` and `mise run test`. The build job runs `mise run zip` and uploads the zip as a downloadable file.
 - **`development.yml`:** runs the checks on every pull request.
-- **`production.yml`:** runs the checks on every push to `main`, then creates a **draft prerelease** with `ForeverUtils-v<version>.zip` attached.
-  - The version comes from `## Version` in `ForeverUtils/ForeverUtils.toc`.
+- **`production.yml`:** runs the checks on every push to `main`, then creates a **draft prerelease** with `CrazyJackUtils-v<version>.zip` attached.
+  - The version comes from `## Version` in `CrazyJackUtils/CrazyJackUtils.toc`.
   - A new push to `main` replaces that version's draft.
   - Once you publish a release, later pushes with the same version leave it alone.
   - Versions are calendar-based: `<year>.<ISO week>.<release that week>`, for example `2026.47.1`. `date +%G.%V` prints the first two parts.
@@ -167,7 +169,7 @@ The options panel and minimap button aren't tested, since they're almost all WoW
 
 ### CurseForge
 
-When you publish a GitHub release, `curseforge.yml` uploads that release's `ForeverUtils-v<version>.zip` to CurseForge. It's the same file `production.yml` built and checked.
+When you publish a GitHub release, `curseforge.yml` uploads that release's `CrazyJackUtils-v<version>.zip` to CurseForge. It's the same file `production.yml` built and checked.
 
 - **Game version:** taken from `## Interface` in the `.toc`. For example `16001` becomes WoW Forever `1.60.1`.
 - **Changelog:** taken from `CHANGELOG.md`.

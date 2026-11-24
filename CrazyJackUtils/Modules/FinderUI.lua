@@ -32,7 +32,7 @@ end
 -- Window
 ---------------------------------------------------------------------------
 
-local window = CreateFrame("Frame", "ForeverUtilsFinderWindow", UIParent, "BasicFrameTemplateWithInset")
+local window = CreateFrame("Frame", "CrazyJackUtilsFinderWindow", UIParent, "BasicFrameTemplateWithInset")
 window:SetSize(WIDTH, 566)
 window:SetPoint("CENTER")
 window:SetMovable(true)
@@ -112,7 +112,7 @@ end
 -- put away for the length of a fight.
 local findButtons = {}
 for i = 1, MAX_TARGETS do
-  local find = CreateFrame("Button", "ForeverUtilsFinderRowButton" .. i, UIParent, "SecureActionButtonTemplate")
+  local find = CreateFrame("Button", "CrazyJackUtilsFinderRowButton" .. i, UIParent, "SecureActionButtonTemplate")
   find:SetSize(ROW_HEIGHT, ROW_HEIGHT)
   find:SetFrameStrata("DIALOG")
   find:RegisterForClicks("AnyUp", "AnyDown")
@@ -435,7 +435,7 @@ end
 -- buttons can't be shown, hidden or moved in combat.
 ---------------------------------------------------------------------------
 
-local button = CreateFrame("Button", "ForeverUtilsFinderButton", UIParent,
+local button = CreateFrame("Button", "CrazyJackUtilsFinderButton", UIParent,
   "SecureActionButtonTemplate,UIPanelButtonTemplate")
 button:SetSize(150, 24)
 button:SetPoint("CENTER", 0, -160)
@@ -455,7 +455,7 @@ button:Hide()
 -- the game's menus. Each one finds its service as the click lands (which rewrites the
 -- macro) and then runs the macro.
 local MENU_ROW, MENU_COLUMN = 18, 124
-local helperMenu = CreateFrame("Frame", "ForeverUtilsFinderMenu", UIParent)
+local helperMenu = CreateFrame("Frame", "CrazyJackUtilsFinderMenu", UIParent)
 helperMenu:SetFrameStrata("DIALOG")
 helperMenu:SetClampedToScreen(true)
 helperMenu:Hide()
@@ -584,7 +584,7 @@ local targetButton
 if TargetFrame then
   -- A child of the target frame, so it comes and goes with it, and disappears if a
   -- unit frame addon hides Blizzard's.
-  targetButton = CreateFrame("Button", "ForeverUtilsFinderTargetButton", TargetFrame, "UIPanelButtonTemplate")
+  targetButton = CreateFrame("Button", "CrazyJackUtilsFinderTargetButton", TargetFrame, "UIPanelButtonTemplate")
   targetButton:SetSize(64, 20)
   targetButton:SetPoint("BOTTOMLEFT", TargetFrame, "TOPLEFT", 24, -14)
   targetButton:Hide()
@@ -615,7 +615,7 @@ if Menu and Menu.ModifyMenu then
     ns.Safe("finder target menu", function()
       if not (module.active and module.db.targetMenu and module:CanFind("target")) then return end
       root:CreateDivider()
-      root:CreateTitle("ForeverUtils")
+      root:CreateTitle("CrazyJackUtils")
       root:CreateButton("Find this mob", function() module:UseUnit("target") end)
       root:CreateButton("Add to find list", function() module:UseUnit("target", true) end)
     end)

@@ -12,7 +12,7 @@ end
 
 -- opts.db:      saved variables to start with.
 -- opts.modules: module tables to register, as a module's file would while loading.
--- opts.files:   module files to load after Core.lua, e.g. { "ForeverUtils/Modules/AutoSell.lua" }.
+-- opts.files:   module files to load after Core.lua, e.g. { "CrazyJackUtils/Modules/AutoSell.lua" }.
 -- opts.env:     extra globals (WoW API stand-ins) for the module under test.
 function M.load(opts)
   opts = opts or {}
@@ -31,7 +31,7 @@ function M.load(opts)
     return frame
   end
   env.SlashCmdList = {}
-  env.ForeverUtilsDB = opts.db
+  env.CrazyJackUtilsDB = opts.db
   for name, value in pairs(opts.env or {}) do env[name] = value end
 
   local ns = {
@@ -41,12 +41,12 @@ function M.load(opts)
   }
   w.env, w.ns = env, ns
 
-  local files = { "ForeverUtils/Core.lua" }
+  local files = { "CrazyJackUtils/Core.lua" }
   for _, file in ipairs(opts.files or {}) do table.insert(files, file) end
   for _, file in ipairs(files) do
     local chunk = assert(loadfile(file))
     setfenv(chunk, env)
-    chunk("ForeverUtils", ns)
+    chunk("CrazyJackUtils", ns)
   end
   for _, module in ipairs(opts.modules or {}) do ns.RegisterModule(module) end
 
@@ -56,10 +56,10 @@ function M.load(opts)
     end
   end
 
-  function w:Slash(input) env.SlashCmdList.FOREVERUTILS(input) end
+  function w:Slash(input) env.SlashCmdList.CRAZYJACKUTILS(input) end
 
-  w:Fire("ADDON_LOADED", "ForeverUtils")
-  w.db = env.ForeverUtilsDB
+  w:Fire("ADDON_LOADED", "CrazyJackUtils")
+  w.db = env.CrazyJackUtilsDB
   return w
 end
 

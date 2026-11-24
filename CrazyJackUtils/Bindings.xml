@@ -1,0 +1,7 @@
+<Bindings>
+  <!-- Names shown in the key bindings menu are set in Modules/Finder.lua. -->
+  <Binding name="CRAZYJACKUTILS_FIND_HOVER" header="CRAZYJACKUTILS" category="ADDONS">
+    CrazyJackUtils_FindHover()
+  </Binding>
+  <Binding name="CLICK CrazyJackUtilsFinderButton:LeftButton" category="ADDONS"/>
+</Bindings>

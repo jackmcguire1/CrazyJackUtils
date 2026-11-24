@@ -1,13 +1,13 @@
 ## Interface: 16001
-## Title: ForeverUtils
+## Title: CrazyJackUtils
 ## Notes: A collection of small utilities for WoW: Forever.
 ## Author: Jack McGuire
-## Version: 2026.48.4
+## Version: 2026.48.5
 ## X-License: Apache-2.0
-## SavedVariables: ForeverUtilsDB
+## SavedVariables: CrazyJackUtilsDB
 ## OptionalDeps: QuestieDB
 ## IconTexture: Interface\Icons\INV_Misc_Wrench_01
-## AddonCompartmentFunc: ForeverUtils_OnAddonCompartmentClick
+## AddonCompartmentFunc: CrazyJackUtils_OnAddonCompartmentClick
 
 Core.lua
 
