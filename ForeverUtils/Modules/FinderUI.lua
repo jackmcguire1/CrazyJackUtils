@@ -60,7 +60,7 @@ for i = 1, MAX_TARGETS do
   row:SetPoint("TOPLEFT", 16, -94 - (i - 1) * ROW_HEIGHT)
   row.text = Label(row, "")
   row.text:SetPoint("LEFT")
-  row.text:SetPoint("RIGHT", -80, 0) -- room for the arrows, the magnifying glass and the remove button
+  row.text:SetPoint("RIGHT", -96, 0) -- room for the map, the arrows, the magnifying glass and the remove button
   row.text:SetWordWrap(false)
   -- Up and down: where the mob comes in the order the macro tries them.
   row.arrows = {}
@@ -80,6 +80,25 @@ for i = 1, MAX_TARGETS do
     move:SetScript("OnLeave", function() GameTooltip:Hide() end)
     row.arrows[index] = move
   end
+  -- Opens the world map where this mob spawns.
+  local map = CreateFrame("Button", nil, row)
+  map:SetSize(16, 16)
+  map:SetPoint("RIGHT", -78, 0)
+  local mapIcon = map:CreateTexture(nil, "ARTWORK")
+  mapIcon:SetSize(14, 14)
+  mapIcon:SetPoint("CENTER")
+  mapIcon:SetTexture("Interface\\Icons\\INV_Misc_Map_01")
+  mapIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92) -- trims the icon's border
+  map:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+  map:SetScript("OnClick", function() module:ShowOnMap(row.name) end)
+  map:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine("Show on the map")
+    GameTooltip:AddLine("Opens the map where this mob is known to spawn. The pins are spawn points, "
+      .. "not the mob itself. Click again to clear them. Needs QuestieDB.", 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  map:SetScript("OnLeave", function() GameTooltip:Hide() end)
   local remove = CreateFrame("Button", nil, row, "UIPanelCloseButton")
   remove:SetSize(22, 22)
   remove:SetPoint("RIGHT")
@@ -292,6 +311,22 @@ allowDead:SetScript("OnClick", function(self)
   module:Changed()
 end)
 
+local unmarkTagged = CreateFrame("CheckButton", nil, window, "UICheckButtonTemplate")
+unmarkTagged:SetSize(24, 24)
+unmarkTagged:SetPoint("BOTTOMLEFT", 146, 34)
+Label(unmarkTagged, "Unmark tagged"):SetPoint("LEFT", unmarkTagged, "RIGHT", 2, 1)
+unmarkTagged:SetScript("OnClick", function(self)
+  module.db.unmarkTagged = self:GetChecked() and true or false
+end)
+unmarkTagged:SetScript("OnEnter", function(self)
+  GameTooltip:SetOwner(self, "ANCHOR_TOP")
+  GameTooltip:AddLine("Unmark tagged mobs")
+  GameTooltip:AddLine("When the mob found is tagged by another player, the marker is taken back off it. "
+    .. "The macro can't skip tagged mobs.", 1, 1, 1, true)
+  GameTooltip:Show()
+end)
+unmarkTagged:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
 -- The raid marker the macro puts on the mob it finds: one icon each, the chosen one lit.
 Label(window, "Mark with"):SetPoint("BOTTOMLEFT", 16, 66)
 local markerButtons = {}
@@ -367,6 +402,7 @@ local function RefreshWindow()
   PlaceFindButtons()
   RefreshList()
   allowDead:SetChecked(db.allowDead)
+  unmarkTagged:SetChecked(db.unmarkTagged)
   for i, pick in pairs(markerButtons) do pick:SetAlpha(i == db.marker and 1 or 0.3) end
 end
 
@@ -668,6 +704,97 @@ function module.InitUI()
   end
 end
 
+-- World map pins: the spawn points of the mob whose map button was clicked, drawn on the
+-- map's canvas so they move and scale with it. Only on the map they belong to.
+local MAX_MAP_PINS = 200
+local mapPinFrame, mapPins = nil, {}
+
+-- The game's own map pin, the one it draws for a waypoint. Not every client has it, so
+-- this is the first of these it knows, or false: then the pins are the raid marker.
+local PIN_ATLASES = { "Waypoint-MapPin-Untracked", "Waypoint-MapPin-Tracked" }
+local pinAtlas
+local function PinAtlas()
+  if pinAtlas ~= nil then return pinAtlas end
+  pinAtlas = false
+  local info = C_Texture and C_Texture.GetAtlasInfo
+  for _, atlas in ipairs(PIN_ATLASES) do
+    local ok, found = pcall(info or error, atlas)
+    if ok and found then
+      pinAtlas = atlas
+      break
+    end
+  end
+  return pinAtlas
+end
+
+local function UpdateMapPins()
+  local shown = module.active and module.mapPins
+  local canvas = WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
+  if not canvas then return end
+  if not mapPinFrame then
+    if not shown then return end
+    mapPinFrame = CreateFrame("Frame", nil, canvas)
+    mapPinFrame:SetAllPoints()
+    mapPinFrame:SetFrameStrata("HIGH") -- above the map's own pins
+  end
+  local onThisMap = shown and WorldMapFrame:GetMapID() == shown.map
+  mapPinFrame:SetShown(onThisMap and true or false)
+  if not onThisMap then return end
+  local width, height = canvas:GetWidth(), canvas:GetHeight()
+  -- The canvas is scaled to fit the window; undo that so pins stay a readable size.
+  local scale = canvas:GetEffectiveScale() / UIParent:GetEffectiveScale()
+  local size = 16 / (scale > 0 and scale or 1)
+  local marker = module.db.marker
+  local atlas = PinAtlas()
+  local count = math.min(#shown.spots, MAX_MAP_PINS)
+  for i = 1, count do
+    local spot = shown.spots[i]
+    local texture = mapPins[i] or mapPinFrame:CreateTexture(nil, "OVERLAY")
+    mapPins[i] = texture
+    if atlas then
+      texture:SetAtlas(atlas)
+      texture:SetSize(size * 1.4, size * 1.4)
+    elseif marker > 0 then
+      texture:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. marker)
+      texture:SetVertexColor(1, 1, 1)
+      texture:SetSize(size, size)
+    else
+      texture:SetColorTexture(1, 0.82, 0) -- no marker chosen: a gold dot
+      texture:SetSize(size / 2, size / 2)
+    end
+    texture:ClearAllPoints()
+    -- A pin points at the spot with its tip; the other shapes sit on it.
+    texture:SetPoint(atlas and "BOTTOM" or "CENTER", mapPinFrame, "TOPLEFT", spot.x * width, -spot.y * height)
+    texture:Show()
+  end
+  for i = count + 1, #mapPins do mapPins[i]:Hide() end
+end
+
+-- Whether the pins are on screen now, so a second click on the map button can clear them.
+function module.MapPinsShown()
+  return mapPinFrame ~= nil and mapPinFrame:IsVisible()
+end
+
+local mapHooked = false
+function module.ShowMapPins()
+  if not WorldMapFrame then return end
+  if not mapHooked then
+    mapHooked = true
+    local function Refresh() ns.Safe("finder map pins", UpdateMapPins) end
+    WorldMapFrame:HookScript("OnShow", Refresh)
+    if WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", Refresh) end
+  end
+  local shown = module.mapPins
+  -- Opening a panel from addon code is blocked in combat; the pins are there when you open it.
+  if InCombatLockdown() and not WorldMapFrame:IsShown() then
+    ns.Print("open your map to see where %s spawns", shown.name)
+    return
+  end
+  if not WorldMapFrame:IsShown() then ToggleWorldMap() end
+  WorldMapFrame:SetMapID(shown.map)
+  ns.Safe("finder map pins", UpdateMapPins)
+end
+
 local function UpdateUI()
   local db = module.db
   local targets = db.targets
@@ -682,6 +809,7 @@ local function UpdateUI()
   end
   UpdateTargetButton()
   pinFrame:SetShown(module.active and db.minimapPins and #targets > 0)
+  UpdateMapPins() -- the mob may have left the list, or the marker changed
   if not module.active then window:Hide() end
   if window:IsShown() then RefreshWindow() end
 end

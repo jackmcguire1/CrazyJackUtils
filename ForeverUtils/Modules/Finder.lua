@@ -20,6 +20,7 @@ local module = ns.RegisterModule({
     targets = {},      -- names, in the order the macro tries them
     seen = {},         -- [npc name] = time() it was last seen, for search suggestions
     allowDead = false, -- also target corpses
+    unmarkTagged = true, -- take the marker back off a mob found that another player has tagged
     marker = 1,        -- raid marker put on the mob found, 0 for none
     showButton = true, -- the floating button
     keepButton = true, -- keep it on screen while there's nothing to find
@@ -183,6 +184,14 @@ end
 
 local function Changed(self)
   targetPoints = nil
+  -- The world map stops showing a mob once it's off the find list.
+  local pinned = self.mapPins
+  if pinned then
+    self.mapPins = nil
+    for _, name in ipairs(self.db.targets) do
+      if name == pinned.name then self.mapPins = pinned end
+    end
+  end
   self:Sync(#self.db.targets > 0)
   if self.UpdateUI then self.UpdateUI() end
 end
@@ -433,7 +442,8 @@ local function AreaMaps()
   return areaMaps
 end
 
--- Every spawn point of NPC `id` as { c = continent, n = yards north, w = yards west }.
+-- Every spawn point of NPC `id` as { c = continent, n = yards north, w = yards west,
+-- map = its UiMapID, x = ..., y = ... }, x and y being 0 to 1 from the map's top left.
 local function SpawnPoints(npcs, id)
   local points = {}
   local maps, api = AreaMaps(), C_Map
@@ -448,7 +458,7 @@ local function SpawnPoints(npcs, id)
           local at = CreateVector2D and CreateVector2D(x / 100, y / 100) or { x = x / 100, y = y / 100 }
           local ok, continent, pos = pcall(api.GetWorldPosFromMapPos, map, at)
           if ok and type(pos) == "table" and type(pos.x) == "number" and type(pos.y) == "number" then
-            table.insert(points, { c = continent, n = pos.x, w = pos.y })
+            table.insert(points, { c = continent, n = pos.x, w = pos.y, map = map, x = x / 100, y = y / 100 })
           end
         end
       end
@@ -622,6 +632,64 @@ function module:MinimapPins(radius, facing, limit)
   table.sort(pins, function(a, b) return a.distance < b.distance end)
   for i = #pins, limit + 1, -1 do pins[i] = nil end
   return pins
+end
+
+-- Where to show mob `name` on the world map: the map holding its spawn point nearest you,
+-- and that mob's spawn points on it as { x = ..., y = ... }, 0 to 1 from the top left.
+-- Where the game won't say where you are, or the mob isn't on your continent, the map
+-- with the most spawn points. nil if QuestieDB knows none, as for mobs inside dungeons.
+function module:MapSpots(name)
+  if databaseState ~= "ready" then return nil end
+  local ids = databaseIds[name:lower()]
+  if type(ids) == "number" then ids = { ids } end
+  local byMap, best, bestDistance = {}, nil, nil
+  local n, w, continent = self:PlayerPosition()
+  for _, id in ipairs(ids or {}) do
+    for _, point in ipairs(SpawnPoints(NpcDB, id)) do
+      byMap[point.map] = byMap[point.map] or {}
+      table.insert(byMap[point.map], { x = point.x, y = point.y })
+      if n and point.c == continent then
+        local distance = (w - point.w) ^ 2 + (n - point.n) ^ 2
+        if not bestDistance or distance < bestDistance then best, bestDistance = point.map, distance end
+      end
+    end
+  end
+  if not best then
+    for map, spots in pairs(byMap) do
+      local most = best and #byMap[best] or 0
+      if #spots > most or (#spots == most and map < best) then best = map end
+    end
+  end
+  if not best then return nil end
+  return best, byMap[best]
+end
+
+-- Opens the world map on the zone where mob `name` spawns, with its spawn points pinned.
+-- Asked again for the mob whose pins are on screen, it clears them.
+-- Returns whether there are now pins to show.
+function module:ShowOnMap(name)
+  if self.mapPins and self.mapPins.name == name and self.MapPinsShown and self.MapPinsShown() then
+    self.mapPins = nil
+    if self.UpdateUI then self.UpdateUI() end
+    return false
+  end
+  self:LoadDatabase()
+  if databaseState == "loading" then
+    ns.Print("reading QuestieDB's NPC list - try again in a moment")
+    return false
+  end
+  if databaseState == "missing" or not AreaMaps() then
+    ns.Print("showing a mob on the map needs the QuestieDB addon")
+    return false
+  end
+  local map, spots = self:MapSpots(name)
+  if not map then
+    ns.Print("QuestieDB doesn't know where %s spawns - it may be inside a dungeon", name)
+    return false
+  end
+  self.mapPins = { name = name, map = map, spots = spots }
+  if self.ShowMapPins then self.ShowMapPins() end
+  return true
 end
 
 -- Reads every NPC name out of QuestieDB, a batch per frame so the game doesn't stall.
@@ -808,6 +876,23 @@ local function See(self, unit)
   self.db.seen[name] = time()
 end
 
+-- The macro can't tell a mob another player has tagged from one that's free, and an addon
+-- can't change your target, so the most that can be done is to take the marker back off:
+-- it then only stays on mobs you can get credit for.
+-- Returns whether the target is a tagged mob from the find list.
+function module:CheckTagged()
+  if not self.db.unmarkTagged or not UnitIsTapDenied then return false end
+  local name = Plain(UnitName("target"))
+  if type(name) ~= "string" or not IndexOf(self.db.targets, name) then return false end
+  if Plain(UnitIsTapDenied("target")) ~= true then return false end
+  -- Only take off the marker the macro put on, never one somebody chose.
+  local marker = self.db.marker
+  if marker > 0 and SetRaidTarget and Plain(GetRaidTargetIndex("target")) == marker then
+    SetRaidTarget("target", 0)
+  end
+  return true
+end
+
 ---------------------------------------------------------------------------
 -- Setup
 ---------------------------------------------------------------------------
@@ -816,8 +901,15 @@ module.events = {
   UPDATE_MOUSEOVER_UNIT = function(self) See(self, "mouseover") end,
   PLAYER_TARGET_CHANGED = function(self)
     See(self, "target")
+    self:CheckTagged()
     if self.UpdateUI then self.UpdateUI() end
   end,
+  -- Someone tagging the mob you already have targeted arrives as this.
+  UNIT_FACTION = function(self, unit)
+    if unit == "target" then self:CheckTagged() end
+  end,
+  -- The macro marks the mob just after targeting it, which can be after the check above.
+  RAID_TARGET_UPDATE = function(self) self:CheckTagged() end,
   NAME_PLATE_UNIT_ADDED = function(self, unit) See(self, unit) end,
   QUEST_LOG_UPDATE = function(self)
     questGroups, questNames = nil, nil

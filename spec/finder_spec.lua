@@ -52,6 +52,9 @@ local function load(opts)
     issecretvalue = function(value) return value == game.secret end,
     UnitExists = function(unit) return game.units[unit] ~= nil end,
     UnitName = function(unit) return game.units[unit] and game.units[unit].name end,
+    UnitIsTapDenied = function(unit) return game.units[unit] and game.units[unit].tagged or false end,
+    GetRaidTargetIndex = function(unit) return game.units[unit] and game.units[unit].marker end,
+    SetRaidTarget = function(unit, index) game.units[unit].marker = index > 0 and index or nil end,
     UnitIsPlayer = function(unit) return game.units[unit].player or false end,
     UnitPlayerControlled = function(unit) return game.units[unit].controlled or false end,
     C_Timer = { After = function(_, fn) table.insert(game.timers, fn) end },
@@ -409,6 +412,51 @@ describe("suggestions", function()
     w.game.units.nameplate3 = { name = "Red Ooze" }
     w:Fire("NAME_PLATE_UNIT_ADDED", "nameplate3")
     assert.same({ "Red Ooze (seen)", "Green Ooze (seen)", "Black Ooze (seen)" }, w:Names(""))
+  end)
+
+  describe("a mob tagged by another player", function()
+    it("loses the macro's marker", function()
+      local w = load({ finder = { targets = { "Kobold" }, marker = 8 } })
+      w.game.units.target = { name = "Kobold", tagged = true }
+      w:Fire("PLAYER_TARGET_CHANGED")
+      w.game.units.target.marker = 8 -- the macro's /tm lands after the target change
+      w:Fire("RAID_TARGET_UPDATE")
+      assert.is_nil(w.game.units.target.marker)
+    end)
+
+    it("loses it when the tag arrives after targeting", function()
+      local w = load({ finder = { targets = { "Kobold" }, marker = 8 } })
+      w.game.units.target = { name = "Kobold", marker = 8 }
+      w:Fire("PLAYER_TARGET_CHANGED")
+      assert.same(8, w.game.units.target.marker)
+      w.game.units.target.tagged = true
+      w:Fire("UNIT_FACTION", "player")
+      assert.same(8, w.game.units.target.marker)
+      w:Fire("UNIT_FACTION", "target")
+      assert.is_nil(w.game.units.target.marker)
+    end)
+
+    it("leaves alone mobs off the list, other markers, and everything when turned off", function()
+      local w = load({ finder = { targets = { "Kobold" }, marker = 8 } })
+      w.game.units.target = { name = "Rat", tagged = true, marker = 8 }
+      w:Fire("PLAYER_TARGET_CHANGED")
+      assert.same(8, w.game.units.target.marker)
+      w.game.units.target = { name = "Kobold", tagged = true, marker = 3 }
+      w:Fire("RAID_TARGET_UPDATE")
+      assert.same(3, w.game.units.target.marker)
+      w.db.modules.finder.unmarkTagged = false
+      w.game.units.target.marker = 8
+      w:Fire("PLAYER_TARGET_CHANGED")
+      assert.same(8, w.game.units.target.marker)
+    end)
+
+    it("does nothing when the game withholds the answer", function()
+      local w = load({ finder = { targets = { "Kobold" } } })
+      w.game.units.target = { name = "Kobold", tagged = w.game.secret, marker = 1 }
+      w:Fire("PLAYER_TARGET_CHANGED")
+      assert.same(1, w.game.units.target.marker)
+      assert.same({}, w.ns.errors)
+    end)
   end)
 
   it("ignores units whose names the game withholds, as in instances", function()
@@ -834,6 +882,59 @@ describe("minimap pins", function()
     end
     return out
   end
+
+  describe("on the world map", function()
+    local function spots(list)
+      local out = {}
+      for i, spot in ipairs(list) do out[i] = ("%d,%d"):format(spot.x * 100 + 0.5, spot.y * 100 + 0.5) end
+      table.sort(out)
+      return out
+    end
+
+    it("show a mob's spawn points on the map holding the nearest one", function()
+      local w = ready({ "Black Ooze" })
+      local map, list = w.finder:MapSpots("Black Ooze")
+      assert.same(1429, map)
+      assert.same({ "100,60", "100,95", "90,100" }, spots(list))
+    end)
+
+    it("fall back to the map with the most when the game won't say where you are", function()
+      local w = ready({ "Black Ooze" })
+      w.game.player = nil
+      assert.same(1429, (w.finder:MapSpots("Black Ooze")))
+    end)
+
+    it("are remembered until the mob leaves the find list", function()
+      local w = ready({ "Black Ooze", "Green Ooze" })
+      local shown = 0
+      w.finder.ShowMapPins = function() shown = shown + 1 end
+      assert.is_true(w.finder:ShowOnMap("Green Ooze"))
+      assert.same(1, shown)
+      assert.same("Green Ooze", w.finder.mapPins.name)
+      w.finder:Remove("Black Ooze")
+      assert.is_table(w.finder.mapPins)
+      w.finder:Remove("Green Ooze")
+      assert.is_nil(w.finder.mapPins)
+    end)
+
+    it("are cleared by asking again while they're on screen", function()
+      local w = ready({ "Green Ooze" })
+      local visible = false
+      w.finder.MapPinsShown = function() return visible end
+      assert.is_true(w.finder:ShowOnMap("Green Ooze"))
+      assert.is_true(w.finder:ShowOnMap("Green Ooze")) -- the map was closed: show them again
+      visible = true
+      assert.is_false(w.finder:ShowOnMap("Green Ooze"))
+      assert.is_nil(w.finder.mapPins)
+    end)
+
+    it("say so when nowhere is known", function()
+      local w = ready({ "Mystery Ooze" })
+      assert.is_false(w.finder:ShowOnMap("Mystery Ooze"))
+      assert.is_nil(w.finder.mapPins)
+      assert.truthy(w.printed[#w.printed]:find("doesn't know where Mystery Ooze spawns", 1, true))
+    end)
+  end)
 
   it("show the spawn points in range, nearest first, for every mob of that name", function()
     local w = ready({ "Black Ooze" })

@@ -34,7 +34,7 @@
     "SLASH_FOREVERUTILS2",
     "InterfaceOptions_AddCategory",
     "ItemDB",
-    "LibQuestieDB",
+    "LibQuestieDB", "ToggleWorldMap", "WorldMapFrame",
     "NpcDB",
     "QuestDB",
     "InterfaceOptionsFrame_OpenToCategory",

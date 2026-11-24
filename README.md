@@ -53,11 +53,13 @@ The marker is cleared before it's set because setting a marker a mob already has
 - **Targeting**
   - The floating button stays on screen; with nothing to find it reads "Target Finder" and a click opens the window. Untick **Keep the button when there's nothing to find** in the options to have it show only while the list isn't empty. Click it to target, right-click to open the window, Shift-click for the nearest-services menu, Shift-drag to move it.
   - In the window, the magnifying glass beside a mob on your list targets just that mob. It runs a second macro, `FUFindOne`, which is written for that mob as you click and created the first time you use a magnifying glass. `FUFind` is never touched by it. These are secure buttons laid over the window rather than part of it, so the window can still be opened and moved in combat; they're hidden while you're in combat.
+  - The map button beside a mob opens the world map on the zone holding its nearest known spawn point and pins that mob's spawn points there, using the game's waypoint pin (or the chosen marker on a client without it). The pins stay until you click the button again, pick another mob, or this one leaves the list. Needs QuestieDB; mobs inside dungeons have no spawn points to show.
   - The macro tries mobs in list order. The up and down arrows beside a mob in the window move it.
   - **Pick up macro** in the window puts `FUFind` on your cursor to drop on an action bar.
   - "Target a mob on the find list" in the key bindings presses the floating button.
 - **Settings**
   - **Include dead mobs** in the window drops the `[dead]` checks.
+  - **Unmark tagged** in the window (on by default): when the mob found is tagged by another player, the macro's marker is taken back off it. It uses `UnitIsTapDenied`, checked when your target changes and when its tag changes. The macro can't skip tagged mobs, because macros have no condition for it and addons can't change your target.
   - **Mark with** in the window picks the raid marker, or none. It's also in the options panel, along with whether the floating button shows and an **Open Target Finder** button.
   - **Show on mob tooltips** in the options panel adds a line when you hover a mob on your list: "the only mob you're finding", or "finding, 2 of 3 on your list". It only adds a line, so other addons' tooltip lines are unaffected.
 - **Limits**
