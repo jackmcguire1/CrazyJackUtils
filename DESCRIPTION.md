@@ -19,7 +19,7 @@ Looking for a particular mob? Pick it from a list and ForeverUtils writes the ta
 - **A button if you'd rather click.** A small floating button targets with a click, opens the list with a right-click and finds a service with a shift-click. It can hide while you have nothing to find, or be turned off.
 - **Tooltip reminder.** Hovering a mob on your find list says so, and whether it's the only one you're finding.
 - **Find the nearest vendor, repairer or trainer.** Shift-click the floating button and pick a service. Target Finder puts the nearest one on your list and tells you how far away it is and which way. Needs QuestieDB.
-- **Show a mob on the world map.** Click the map button beside a mob to open the map on the zone where it spawns, with its spawn points pinned. Click it again to clear them. Needs QuestieDB.
+- **Show a mob on the world map.** Click the map button beside a mob to open the map on the zone where it spawns, with its spawn points pinned. Hover a pin for details, shift-click it to remove it, or click the map button again to clear them all. Needs QuestieDB.
 - **Spawn points on the minimap.** The places your mobs are known to spawn show on the minimap with your chosen raid marker. If none is in range, the nearest one sits on the rim to point the way. Needs QuestieDB.
 
 ## Getting started

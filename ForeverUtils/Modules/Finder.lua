@@ -692,6 +692,15 @@ function module:ShowOnMap(name)
   return true
 end
 
+-- Takes one spawn point off the world map, or all of them without an index.
+function module:RemoveMapPin(index)
+  local pinned = self.mapPins
+  if not pinned then return end
+  if index then table.remove(pinned.spots, index) end
+  if not index or #pinned.spots == 0 then self.mapPins = nil end
+  if self.UpdateUI then self.UpdateUI() end
+end
+
 -- Reads every NPC name out of QuestieDB, a batch per frame so the game doesn't stall.
 -- Called when the window first opens, so players who never search don't pay for it.
 function module:LoadDatabase()

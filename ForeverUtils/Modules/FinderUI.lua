@@ -727,7 +727,44 @@ local function PinAtlas()
   return pinAtlas
 end
 
-local function UpdateMapPins()
+local UpdateMapPins
+
+-- A pin is a frame so it can have a tooltip and take a shift-click. Clicks are passed on
+-- to the map underneath as well, where the client allows, so pins don't get in its way.
+local function PassClicks(pin)
+  if pin.passes or InCombatLockdown() or not pin.SetPropagateMouseClicks then return end
+  pin.passes = pcall(pin.SetPropagateMouseClicks, pin, true)
+end
+
+local function NewMapPin(index)
+  local pin = CreateFrame("Frame", nil, mapPinFrame)
+  pin.texture = pin:CreateTexture(nil, "OVERLAY")
+  pin.texture:SetAllPoints()
+  pin:EnableMouse(true)
+  pin:SetScript("OnEnter", function(self)
+    local shown = module.mapPins
+    local spot = shown and shown.spots[index]
+    if not spot then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(shown.name)
+    GameTooltip:AddLine(("Known spawn point at %.1f, %.1f"):format(spot.x * 100, spot.y * 100), 1, 1, 1)
+    if #shown.spots > 1 then
+      GameTooltip:AddLine(("One of %d here. It may not be at this one."):format(#shown.spots), 1, 1, 1)
+    end
+    GameTooltip:AddLine("Shift-click: remove this pin", 0.6, 0.6, 0.6)
+    GameTooltip:AddLine("Shift-right-click: remove them all", 0.6, 0.6, 0.6)
+    GameTooltip:Show()
+  end)
+  pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  pin:SetScript("OnMouseUp", function(_, mouseButton)
+    if not IsShiftKeyDown() then return end
+    GameTooltip:Hide()
+    module:RemoveMapPin(mouseButton ~= "RightButton" and index or nil)
+  end)
+  return pin
+end
+
+function UpdateMapPins()
   local shown = module.active and module.mapPins
   local canvas = WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
   if not canvas then return end
@@ -749,23 +786,25 @@ local function UpdateMapPins()
   local count = math.min(#shown.spots, MAX_MAP_PINS)
   for i = 1, count do
     local spot = shown.spots[i]
-    local texture = mapPins[i] or mapPinFrame:CreateTexture(nil, "OVERLAY")
-    mapPins[i] = texture
+    local pin = mapPins[i] or NewMapPin(i)
+    mapPins[i] = pin
+    PassClicks(pin)
+    local texture = pin.texture
     if atlas then
       texture:SetAtlas(atlas)
-      texture:SetSize(size * 1.4, size * 1.4)
+      pin:SetSize(size * 1.4, size * 1.4)
     elseif marker > 0 then
       texture:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_" .. marker)
       texture:SetVertexColor(1, 1, 1)
-      texture:SetSize(size, size)
+      pin:SetSize(size, size)
     else
       texture:SetColorTexture(1, 0.82, 0) -- no marker chosen: a gold dot
-      texture:SetSize(size / 2, size / 2)
+      pin:SetSize(size / 2, size / 2)
     end
-    texture:ClearAllPoints()
+    pin:ClearAllPoints()
     -- A pin points at the spot with its tip; the other shapes sit on it.
-    texture:SetPoint(atlas and "BOTTOM" or "CENTER", mapPinFrame, "TOPLEFT", spot.x * width, -spot.y * height)
-    texture:Show()
+    pin:SetPoint(atlas and "BOTTOM" or "CENTER", mapPinFrame, "TOPLEFT", spot.x * width, -spot.y * height)
+    pin:Show()
   end
   for i = count + 1, #mapPins do mapPins[i]:Hide() end
 end

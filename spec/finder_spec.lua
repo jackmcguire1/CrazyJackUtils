@@ -928,6 +928,21 @@ describe("minimap pins", function()
       assert.is_nil(w.finder.mapPins)
     end)
 
+    it("can be removed one at a time, or all at once", function()
+      local w = ready({ "Black Ooze" })
+      w.finder:ShowOnMap("Black Ooze")
+      local first = w.finder.mapPins.spots[1]
+      w.finder:RemoveMapPin(2)
+      assert.same(2, #w.finder.mapPins.spots)
+      assert.equal(first, w.finder.mapPins.spots[1])
+      w.finder:RemoveMapPin(1)
+      w.finder:RemoveMapPin(1)
+      assert.is_nil(w.finder.mapPins) -- the last one went
+      w.finder:ShowOnMap("Black Ooze")
+      w.finder:RemoveMapPin()
+      assert.is_nil(w.finder.mapPins)
+    end)
+
     it("say so when nowhere is known", function()
       local w = ready({ "Mystery Ooze" })
       assert.is_false(w.finder:ShowOnMap("Mystery Ooze"))
