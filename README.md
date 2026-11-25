@@ -2,8 +2,6 @@
 
 A WoW: Forever addon that collects small utilities in one place. Each utility is a **module** that can be turned on or off on its own.
 
-It was called ForeverUtils until v2026.48.5. The `/fu` command and the `FUFind` macro names date from then and were kept.
-
 ## In game
 
 - Click the minimap button to open the options, or right-click it to turn CrazyJackUtils on or off. Drag it to move it around the minimap.
