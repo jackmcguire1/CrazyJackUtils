@@ -1,7 +1,5 @@
 # CrazyJackUtils
 
-*Formerly ForeverUtils.*
-
 **Small, useful tools for WoW Forever in one addon. First up: Target Finder, which keeps a targeting macro up to date so you never edit one by hand again.**
 
 CrazyJackUtils is a collection of utilities, each one a module you can turn on or off on its own. It starts with Target Finder and will grow over time.

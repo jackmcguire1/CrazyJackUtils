@@ -153,7 +153,6 @@ frame:SetScript("OnEvent", function(_, event, ...)
   end
 end)
 
--- /fu is from the addon's old name, ForeverUtils, and stays because it's short.
 SLASH_CRAZYJACKUTILS1 = "/crazyjackutils"
 SLASH_CRAZYJACKUTILS2 = "/fu"
 SLASH_CRAZYJACKUTILS3 = "/cju"
